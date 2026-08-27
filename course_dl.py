@@ -46,11 +46,23 @@ class CourseDownloader:
         # will create necessary course_dir parent directory
         os.makedirs(files_dir, exist_ok=True)
 
-    def download_file(self, content_id: int) -> bool:
+    # FOR MOST COURSE RESOURCES:
+    # - check if already downloaded/saved to dict
+    # - get resource (& save if file)
+    # - if resource contains html -> process_html()
+    # - if resource contains files -> download_file()
+    # - add resource id to dict
+
+    # NOTE: File name should be same / stored in file json for it to be retrieved later
+    # by viewer
+    def download_file(self, id: int, is_submission: bool = False) -> bool:
         # Downloads file if it hasn't already been downloaded
-        if content_id in self.files:
+        if id in self.files:
             return False
-        file = self.course.get_file(content_id)
+        
+        file = self.course.get_file(id)
+        file.is_submission = is_submission
+
         file_name = file.filename
         # file_name = util.makeValidFilename(file.filename)
         filepath = os.path.join(self.course_dir, "files", file_name)
@@ -61,9 +73,51 @@ class CourseDownloader:
             print(f"File already exists: {file_name}")
 
         # Add file info to dict
-        self.files[content_id] = _clean_obj(file)
+        self.files[id] = _clean_obj(file)
         return True
 
-    
+    #TODO
+    def process_html(self, html_content: str) -> str:
+        return ""
 
-    
+    def download_page(self, page_url: str) -> bool:
+        if page_url in self.pages:
+            return False
+        
+        page = self.course.get_page(page_url)
+
+        # NoneType values
+        page_html = page.body
+        if not page_html:
+            page_html = ""
+        page.html_mod = self.process_html(page_html)
+
+        self.pages[page_url] = _clean_obj[page]
+        return True
+
+    def download_assignment(self, id) -> bool:
+        if id in self.assignments:
+            return False
+        
+        assignment = self.course.get_assignment(id, include=["submission","score_statistics","ab_guid"])
+        assignment.submission_full = assignment.get_submission(assignment.submission.user_id, include=["submission_history","submission_comments","submission_html_comments",
+                                                                  "rubric_assessment","assignment","visibility","course","user","group",
+                                                                  "read_status","student_entered_score"])
+
+        # grab file attachments
+        # this downloads for all submissions in sub history
+        # you may need to attach id to name since they're likely submitted with the same filename.
+        # perhaps you can also have this as a togglable option, some users may not care for old submissions
+        # TODO
+        for submission in assignment.submission_full.submission_history:
+            for attachment in submission.attachments:
+                self.download_file(attachment.id, is_submission=True)
+
+        _clean_obj(assignment.submission_full.attachments)
+        _clean_obj(assignment.submission_full)
+        self.assignments[id] = _clean_obj[assignment]
+        return True
+
+        
+
+        
