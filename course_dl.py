@@ -1,6 +1,7 @@
 import os
 import re
 from canvasapi.course import Course
+from canvasapi.module import ModuleItem
 
 import jsonpickle
 
@@ -33,7 +34,7 @@ class CourseDownloader:
     # submissions: dict
     discussion_topics: dict
     announcements: dict
-    modules: dict
+    modules: list # just list or dict for ids as well?
     # videos
     # media_gallery
 
@@ -45,6 +46,19 @@ class CourseDownloader:
 
         # will create necessary course_dir parent directory
         os.makedirs(files_dir, exist_ok=True)
+
+    def download_resources():
+        # main method
+        # home page / syllabus
+        # download pages (?)
+        # download assignments
+        # download modules
+        # download announcements, discussion topics
+        # clean course obj?
+        pass
+
+    def save_as_jsons():
+        pass
 
     # FOR MOST COURSE RESOURCES:
     # - check if already downloaded/saved to dict
@@ -77,20 +91,26 @@ class CourseDownloader:
         return True
 
     #TODO
-    def process_html(self, html_content: str) -> str:
+    def process_html(self, html_content: str | None) -> str:
+        # NoneType values
+        if not html_content:
+            return ""
+
+        # find relevant links in html_content, download resource if necessary and modify link to use local.
+        # beautifulsoup / regex / string searches
         return ""
 
     def download_page(self, page_url: str) -> bool:
         if page_url in self.pages:
             return False
+
+        # TODO: in the case that process_html() ends up calling download_page() on the same page,
+        # (like if two pages refer to each other in their html content), you need to add the page
+        # to self.pages dict before calling process_html(), or have a separate "working pages" set
+        # where the page is temporarily stored for checking purposes
         
         page = self.course.get_page(page_url)
-
-        # NoneType values
-        page_html = page.body
-        if not page_html:
-            page_html = ""
-        page.html_mod = self.process_html(page_html)
+        page.html_mod = self.process_html(page.body)
 
         self.pages[page_url] = _clean_obj[page]
         return True
@@ -100,6 +120,7 @@ class CourseDownloader:
             return False
         
         assignment = self.course.get_assignment(id, include=["submission","score_statistics","ab_guid"])
+        assignment.html_mod = self.process_html(assignment.description)
         assignment.submission_full = assignment.get_submission(assignment.submission.user_id, include=["submission_history","submission_comments","submission_html_comments",
                                                                   "rubric_assessment","assignment","visibility","course","user","group",
                                                                   "read_status","student_entered_score"])
@@ -113,11 +134,64 @@ class CourseDownloader:
             for attachment in submission.attachments:
                 self.download_file(attachment.id, is_submission=True)
 
+        #NOTE: submission_full also have "submission_html_comments" which contain html content in "comment" attribute
+        for comment_obj in assignment.submission_full.submission_html_comments:
+            comment_obj.html_mod = self.process_html(comment_obj.comment)
+
         _clean_obj(assignment.submission_full.attachments)
         _clean_obj(assignment.submission_full)
         self.assignments[id] = _clean_obj[assignment]
         return True
 
-        
+    def download_module_item(self, item: ModuleItem):
+        match item.type:
+            case "File":
+                self.download_file(item.content_id)
+            case "Page":
+                self.download_page(item.page_url)
+            case "Assignment":
+                self.download_assignment(item.content_id)
+            # TODO ...
+            case "Discussion":
+                # uses content_id
+                pass
+            case "Quiz":
+                # uses content_id
+                pass
+            case "SubHeader":
+                pass
+            case "ExternalUrl":
+                # uses external_url
+                pass
+            case "ExternalTool":
+                # uses content_id & external_url
+                pass
+            case _:
+                pass
 
+        #modify item if necessary (i.e. relative url to the resource)
+        # (^ prob not necessary, can be pretty easily recreated from existing details)
+        return item
+
+
+    def download_modules(self):
+        modules = self.course.get_modules()
+        if not modules:
+            print("No modules exist for this course")
+            return
+
+        modules_list = []
+        for module in modules:
+            # retrieve items in module before deleting requester.
+            module_items = module.get_module_items(include=["content_details"])
+            module.items = []
+            for item in module_items:
+                # for each item, you should check what type it is and call the respective method
+                # to check if exists and if not, retrieve it and store in the respective dictionary
+                # for the course.
+                self.download_module_item(item)
+                module.items.append(_clean_obj(item))
+            modules_list.append(_clean_obj(module))
+            
+        self.modules = modules_list
         
