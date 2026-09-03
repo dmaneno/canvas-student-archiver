@@ -103,11 +103,9 @@ class CourseDownloader:
     def download_page(self, page_url: str) -> bool:
         if page_url in self.pages:
             return False
-
-        # TODO: in the case that process_html() ends up calling download_page() on the same page,
-        # (like if two pages refer to each other in their html content), you need to add the page
-        # to self.pages dict before calling process_html(), or have a separate "working pages" set
-        # where the page is temporarily stored for checking purposes
+        # Add to dict with temp value - address case of two resources referring to each
+        # other in html content
+        self.pages[page_url] = None
         
         page = self.course.get_page(page_url)
         page.html_mod = self.process_html(page.body)
@@ -118,6 +116,9 @@ class CourseDownloader:
     def download_assignment(self, id) -> bool:
         if id in self.assignments:
             return False
+        # Add to dict with temp value - address case of two resources referring to each
+        # other in html content
+        self.assignments[id] = None
         
         assignment = self.course.get_assignment(id, include=["submission","score_statistics","ab_guid"])
         assignment.html_mod = self.process_html(assignment.description)
