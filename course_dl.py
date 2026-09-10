@@ -213,7 +213,7 @@ class CourseDownloader:
             # TODO ...
             case "Discussion":
                 # uses content_id
-                pass
+                self.download_discussion_topic(item.content_id)
             case "Quiz":
                 # uses content_id
                 pass
