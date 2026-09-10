@@ -2,6 +2,7 @@ import os
 import re
 from canvasapi.course import Course
 from canvasapi.module import ModuleItem
+from canvasapi.discussion_topic import DiscussionTopic
 
 import jsonpickle
 
@@ -24,6 +25,7 @@ def _write_html(html:str, path:str):
 class CourseDownloader:
     course: Course
     course_dir: str
+    file_size_thresh: int
 
     # Store each dict into a separate json in course's folder
     course_dict: dict  #<- hm, maybe this one should be in the top level for the output folder.
@@ -80,11 +82,16 @@ class CourseDownloader:
         file_name = file.filename
         # file_name = util.makeValidFilename(file.filename)
         filepath = os.path.join(self.course_dir, "files", file_name)
-        if not os.path.exists(filepath):
-            file.download(filepath)
-            print(f"Downloaded: {file_name}")
+
+        # size in bytes
+        if self.file_size_thresh and file.size > self.file_size_thresh:
+            print(f"File size is above set threshold; ")
         else:
-            print(f"File already exists: {file_name}")
+            if not os.path.exists(filepath):
+                file.download(filepath)
+                print(f"Downloaded: {file_name}")
+            else:
+                print(f"File already exists: {file_name}")
 
         # Add file info to dict
         self.files[id] = _clean_obj(file)
@@ -143,6 +150,42 @@ class CourseDownloader:
         _clean_obj(assignment.submission_full)
         self.assignments[id] = _clean_obj[assignment]
         return True
+
+    # downloads cached view and stores to Topic object. including announcements.
+    # - this method currently utilizes cached course.get_full_discussion_topic(), but
+    # - could also use DiscussionTopic.get_entries() -> DiscussionEntry.get_replies()
+    def download_full_discussion_topic(self, topic: DiscussionTopic) -> bool:
+        # this just returns the JSON (in dict form) as is from the response, so
+        # no need to call _clean_obj() later
+        full_topic = self.course.get_full_discussion_topic(topic.id)
+        # TODO: html / text components to check: entry messages, replies
+        # -> NOTE: main message is actually in the topic itself, not here.
+        # TODO: download any file attachments
+        # -> NOTE: some of these are not associated with the course itself.
+        #    either just in "files" broadly, or in user's files. can also be 
+        #    located in attachment(s) attribute or inline in the entry message
+        topic.full_topic = full_topic
+        return True
+
+    # NOTE: currently I'm not expecting to have to request discussion topic objects individually
+    # i.e. with course.get_discussion_topic(id) so for now there's no method for that in this class
+    # This would become necessary if somehow a discussion topic link is found elsewhere (i.e. in modules)
+    # while not being retrievable through download_discussion_topics() somehow.
+
+    def download_discussion_topics(self):
+        topics = self.course.get_discussion_topics(include = ["sections_user_count","sections"])
+        for topic in topics:
+            topic.is_announcement = False
+            self.download_full_discussion_topic(topic)
+            self.discussion_topics[topic.id] = _clean_obj(topic)
+
+    def download_announcements(self):
+        announcements = self.course.get_discussion_topics(include = ["sections_user_count","sections"], only_announcements=True)
+        for announcement in announcements:
+            announcement.is_announcement = True
+            self.download_full_discussion_topic(announcement)
+            self.discussion_topics[announcement.id] = _clean_obj(announcement)
+        
 
     def download_module_item(self, item: ModuleItem):
         match item.type:
