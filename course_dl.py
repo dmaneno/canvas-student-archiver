@@ -172,9 +172,23 @@ class CourseDownloader:
     # This would become necessary if somehow a discussion topic link is found elsewhere (i.e. in modules)
     # while not being retrievable through download_discussion_topics() somehow.
 
+    # this should be run if encountered in module item. modules should be retrieved after
+    # download_discussion_topics() and download_announcements() are already run, so we can
+    # minimize the requests done one-by-one. Not sure if there's actually any performance advantage
+    # of downloading all at once, but it seems more convenient.
+    def download_discussion_topic(self, id: int) -> bool:
+        if id in self.discussion_topics:
+            return False
+        topic = self.course.get_discussion_topic(id)
+        # NOTE: AFAIK, there's no way to know from module item if a topic is an announcement or not
+        topic.is_announcement = False
+        self.download_full_discussion_topic(topic)
+        self.discussion_topics[id] = _clean_obj(topic)
+
     def download_discussion_topics(self):
         topics = self.course.get_discussion_topics(include = ["sections_user_count","sections"])
         for topic in topics:
+            self.discussion_topics[topic.id] = None
             topic.is_announcement = False
             self.download_full_discussion_topic(topic)
             self.discussion_topics[topic.id] = _clean_obj(topic)
@@ -182,6 +196,7 @@ class CourseDownloader:
     def download_announcements(self):
         announcements = self.course.get_discussion_topics(include = ["sections_user_count","sections"], only_announcements=True)
         for announcement in announcements:
+            self.discussion_topics[announcement.id] = None
             announcement.is_announcement = True
             self.download_full_discussion_topic(announcement)
             self.discussion_topics[announcement.id] = _clean_obj(announcement)
