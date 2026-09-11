@@ -25,7 +25,9 @@ def _write_html(html:str, path:str):
 class CourseDownloader:
     course: Course
     course_dir: str
-    file_size_thresh: int
+    # in bytes. -1 = no thresh, 0 = don't download anything, anything higher is regular thresh
+    # TODO: give option to enter and convert string value like 500mb, 2gb, etc. 
+    file_size_thresh: int  
 
     # Store each dict into a separate json in course's folder
     course_dict: dict  #<- hm, maybe this one should be in the top level for the output folder.
@@ -40,10 +42,11 @@ class CourseDownloader:
     # videos
     # media_gallery
 
-    def __init__(self, course: Course, course_dir: str):
+    def __init__(self, course: Course, course_dir: str, file_size_thresh: int = -1):
         self.course = course
         self.course_dir = course_dir
         files_dir = os.path.join(course_dir, "files")
+        self.file_size_thresh = file_size_thresh # default is no threshold
         # submissions, attachments, imgs
 
         # will create necessary course_dir parent directory
@@ -76,22 +79,25 @@ class CourseDownloader:
         if id in self.files:
             return False
         
-        file = self.course.get_file(id)
+        file = self.course.get_file(id, include = ["user", "usage_rights"])
         file.is_submission = is_submission
 
         file_name = file.filename
+        # NOTE: from old repo. check if necessary to keep
         # file_name = util.makeValidFilename(file.filename)
         filepath = os.path.join(self.course_dir, "files", file_name)
 
         # size in bytes
-        if self.file_size_thresh and file.size > self.file_size_thresh:
-            print(f"File size is above set threshold; ")
+        if self.file_size_thresh > -1 and file.size > self.file_size_thresh:
+            print(f"File size is above set threshold; marked as not downloaded")
+            file.downloaded = False
         else:
             if not os.path.exists(filepath):
                 file.download(filepath)
                 print(f"Downloaded: {file_name}")
             else:
                 print(f"File already exists: {file_name}")
+            file.downloaded = True
 
         # Add file info to dict
         self.files[id] = _clean_obj(file)
