@@ -5,6 +5,7 @@ from canvasapi.module import ModuleItem
 from canvasapi.discussion_topic import DiscussionTopic
 
 import jsonpickle
+from bs4 import BeautifulSoup
 
 def _clean_obj(obj: object):
     # python pass-by-object-reference, but return anyway so it can be placed within
@@ -80,6 +81,9 @@ class CourseDownloader:
             return False
         
         file = self.course.get_file(id, include = ["user", "usage_rights"])
+        # TODO: more types? submission, attachment, image. keep in separate folders?
+        # so it may make more sense to change this to a string "file type"
+        # embedded images are likely to be downloaded in a different way though.
         file.is_submission = is_submission
 
         file_name = file.filename
@@ -111,6 +115,67 @@ class CourseDownloader:
 
         # find relevant links in html_content, download resource if necessary and modify link to use local.
         # beautifulsoup / regex / string searches
+        # links to find:
+        # - canvas resource links
+        # - embedded images / links
+        # - kaltura / video links
+        # - external links - if leads to a file, maybe try to download? not sure yet
+
+        soup = BeautifulSoup(html_content, 'lxml')
+        links = soup.find_all('a')
+
+        # canvas resource links
+        for link in links:
+            if self.course._requester.original_url in link['href']:
+                endpoint = link['data-api-endpoint']
+                returntype = link['data-api-returntype']
+
+                # NOTE: need to account for both course files and non-course files
+                # (see comment in discussion methods)
+                # f"courses/{self.course.id}/..." from old repo may not be necessary
+
+                match returntype:
+                    case "File":
+                        content_id = int(endpoint.split("/files/")[-1])
+                        self.download_file(content_id)
+                    case "Page":
+                        page_url = endpoint.split("/pages/")[-1]
+                        self.download_page(page_url)
+                    case "Assignment":
+                        content_id = int(endpoint.split("/assignments/")[-1])
+                        self.download_assignment(content_id)
+                    case "Discussion":
+                        content_id = int(endpoint.split('/discussion_topics/')[-1])
+                        self.download_discussion_topic(content_id)
+                    case "Quiz":
+                        # uses content_id
+                        pass
+                    case "SubHeader":
+                        pass
+                    case "ExternalUrl":
+                        # uses external_url
+                        pass
+                    case "ExternalTool":
+                        # uses content_id & external_url
+                        pass
+                    case _:
+                        pass
+
+                # turn href to local url. maybe save the original in a new attribute "original_href"
+
+
+        # embedded images / links
+        imgs = soup.find_all('img')
+
+        # kaltura / video links
+
+        # youtube links - store in case user wants to download bulk with yt-dlp?
+
+        # external links
+
+        # modify and return html from beautifulsoup (NOTE: need to test: do changes 
+        # in objects derived from original soup affect the original soup?)
+
         return ""
 
     def download_page(self, page_url: str) -> bool:
