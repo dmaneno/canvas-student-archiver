@@ -3,6 +3,7 @@ import re
 from canvasapi.course import Course
 from canvasapi.module import ModuleItem
 from canvasapi.discussion_topic import DiscussionTopic
+from canvasapi.assignment import Assignment
 
 import jsonpickle
 from bs4 import BeautifulSoup
@@ -53,15 +54,35 @@ class CourseDownloader:
         # will create necessary course_dir parent directory
         os.makedirs(files_dir, exist_ok=True)
 
-    def download_resources():
-        # main method
+    # main method
+    def download_resources(self):
         # home page / syllabus
-        # download pages (?)
+        self.download_home_page()
         # download assignments
+        self.download_assignments()
+        
+        # download pages (?)
         # download modules
         # download announcements, discussion topics
         # clean course obj?
         pass
+
+    def download_home_page(self):
+        match self.course.default_view:
+            case "wiki":
+                self.download_page("home")
+            case "syllabus":
+                self.course.html_mod = self.process_html(self.course.syllabus_body)
+            # other types are 'modules', 'assignments', and 'feed'.
+            # first two will be downloaded later in download_resources(),
+            # and feed is not really important imo.
+
+    def download_assignments(self):
+        assignments = self.course.get_assignments(include=["submission","score_statistics","ab_guid"])
+        for assignment in assignments:
+            self.download_assignment(assignment.id, assignment)
+
+
 
     def save_as_jsons():
         pass
@@ -125,8 +146,9 @@ class CourseDownloader:
         links = soup.find_all('a')
 
         # canvas resource links
+        domain = self.course._requester.original_url
         for link in links:
-            if self.course._requester.original_url in link['href']:
+            if domain in link['href']:
                 endpoint = link['data-api-endpoint']
                 returntype = link['data-api-returntype']
 
@@ -162,6 +184,13 @@ class CourseDownloader:
                         pass
 
                 # turn href to local url. maybe save the original in a new attribute "original_href"
+                # should be like /courses/:courseid/:resource_type/:id_or_url
+                # some original hrefs have additional parameters like "download?wrap=1"
+                link['og_href'] = link['href']
+                # domain as stored in _requester.original_url has no trailing '/'
+                # so splitting this way keeps the '/' in front of 'courses'
+                # (see Canvas.__init__ in canvas.py)
+                link['href'] = link['href'].split(domain)[-1]
 
 
         # embedded images / links
@@ -176,7 +205,7 @@ class CourseDownloader:
         # modify and return html from beautifulsoup (NOTE: need to test: do changes 
         # in objects derived from original soup affect the original soup?)
 
-        return ""
+        return soup.prettify()
 
     def download_page(self, page_url: str) -> bool:
         if page_url in self.pages:
@@ -191,14 +220,16 @@ class CourseDownloader:
         self.pages[page_url] = _clean_obj[page]
         return True
 
-    def download_assignment(self, id) -> bool:
+    def download_assignment(self, id: int, assignment: Assignment = None) -> bool:
         if id in self.assignments:
             return False
         # Add to dict with temp value - address case of two resources referring to each
         # other in html content
         self.assignments[id] = None
+
+        if not assignment:    
+            assignment = self.course.get_assignment(id, include=["submission","score_statistics","ab_guid"])
         
-        assignment = self.course.get_assignment(id, include=["submission","score_statistics","ab_guid"])
         assignment.html_mod = self.process_html(assignment.description)
         assignment.submission_full = assignment.get_submission(assignment.submission.user_id, include=["submission_history","submission_comments","submission_html_comments",
                                                                   "rubric_assessment","assignment","visibility","course","user","group",
