@@ -62,21 +62,40 @@ class CourseDownloader:
         self.course.syllabus_body_mod = self.process_html(self.course.syllabus_body)
         if self.course.default_view == "wiki":
             self.download_page("home")
-        # assignments
-        self.download_assignments()
         # files
         # only has effect if "files" tab was enabled for course
-
+        self.download_files()
         # download pages (?)
         # only has effect if the "pages" tab was enabled
-
+        self.download_pages()
+        # assignments
+        self.download_assignments()
+        # download announcements, discussion topics
+        self.download_announcements()
+        self.download_discussion_topics()
         # download modules
         self.download_modules()
-        # download announcements, discussion topics
-        self.download_discussion_topics()
-        self.download_announcements()
-        # clean course obj?
-        pass
+        # TODO: clean course obj and save resources to jsons?
+        self.save_as_jsons()
+
+
+
+
+    # --------- "batch download" methods ----------------------------------------
+
+
+    # Does nothing (i.e "files" variable is empty) when File tab of Course is disabled
+    def download_files(self):
+        files = self.course.get_files(include = ["user", "usage_rights"])
+        for file in files:
+            self.download_file(file.id, file)
+
+
+    # Does nothing (i.e "pages" variable is empty) when Pages tab of Course is disabled
+    def download_pages(self):
+        pages = self.course.get_pages()
+        for page in pages:
+            self.download_page(page.url, page)
 
 
     def download_assignments(self):
@@ -84,21 +103,55 @@ class CourseDownloader:
         for assignment in assignments:
             self.download_assignment(assignment.id, assignment)
 
-    def download_files(self):
-        files = self.course.get_files(include = ["user", "usage_rights"]) #TODO
-        for file in files:
-            self.download_file(file.id, file)
+
+    def download_announcements(self):
+        announcements = self.course.get_discussion_topics(include = ["sections_user_count","sections"], only_announcements=True)
+        for announcement in announcements:
+            self.discussion_topics[announcement.id] = None
+            announcement.is_announcement = True
+            self.download_full_discussion_topic(announcement)
+            self.discussion_topics[announcement.id] = _clean_obj(announcement)
 
 
+    def download_discussion_topics(self):
+        topics = self.course.get_discussion_topics(include = ["sections_user_count","sections"])
+        for topic in topics:
+            self.discussion_topics[topic.id] = None
+            topic.is_announcement = False
+            self.download_full_discussion_topic(topic)
+            self.discussion_topics[topic.id] = _clean_obj(topic)
 
-    def save_as_jsons():
+
+    def download_modules(self):
+        modules = self.course.get_modules()
+        if not modules:
+            print("No modules exist for this course")
+            return
+
+        modules_list = []
+        for module in modules:
+            # retrieve items in module before deleting requester.
+            module_items = module.get_module_items(include=["content_details"])
+            module.items = []
+            for item in module_items:
+                # for each item, you should check what type it is and call the respective method
+                # to check if exists and if not, retrieve it and store in the respective dictionary
+                # for the course.
+                self.download_module_item(item)
+                module.items.append(_clean_obj(item))
+            modules_list.append(_clean_obj(module))
+            
+        self.modules = modules_list
+
+
+    # TODO
+    def save_as_jsons(self):
         pass
 
 
 
 
-
-    # --- Atomic resources ---
+    # --- Atomic resources ----------------------------------------------------------------
 
     # FOR MOST COURSE RESOURCES:
     # - check if already downloaded/saved to dict
@@ -106,6 +159,7 @@ class CourseDownloader:
     # - if resource contains html -> process_html()
     # - if resource contains files -> download_file()
     # - add resource id to dict
+
 
     # NOTE: File name should be same / stored in file json for it to be retrieved later
     # by viewer
@@ -127,6 +181,8 @@ class CourseDownloader:
         # file_name = util.makeValidFilename(file.filename)
         filepath = os.path.join(self.course_dir, "files", file_name)
 
+        # TODO: folders??
+
         # size in bytes
         if self.file_size_thresh > -1 and file.size > self.file_size_thresh:
             print(f"File size is above set threshold; marked as not downloaded")
@@ -144,6 +200,129 @@ class CourseDownloader:
         # Add file info to dict
         self.files[id] = _clean_obj(file)
         return True
+
+
+    def download_page(self, page_url: str, page: Page = None) -> bool:
+        if page_url in self.pages:
+            return False
+        # Add to dict with temp value - address case of two resources referring to each
+        # other in html content
+        self.pages[page_url] = None
+
+        if not page:
+            page = self.course.get_page(page_url)
+
+        page.html_mod = self.process_html(page.body)
+
+        self.pages[page_url] = _clean_obj[page]
+        return True
+
+
+    def download_assignment(self, id: int, assignment: Assignment = None) -> bool:
+        if id in self.assignments:
+            return False
+        # Add to dict with temp value - address case of two resources referring to each
+        # other in html content
+        self.assignments[id] = None
+
+        if not assignment:    
+            assignment = self.course.get_assignment(id, include=["submission","score_statistics","ab_guid"])
+        
+        assignment.html_mod = self.process_html(assignment.description)
+        assignment.submission_full = assignment.get_submission(assignment.submission.user_id, include=["submission_history","submission_comments","submission_html_comments",
+                                                                  "rubric_assessment","assignment","visibility","course","user","group",
+                                                                  "read_status","student_entered_score"])
+
+        # grab file attachments
+        # this downloads for all submissions in sub history
+        # you may need to attach id to name since they're likely submitted with the same filename.
+        # perhaps you can also have this as a togglable option, some users may not care for old submissions
+        # TODO
+        for submission in assignment.submission_full.submission_history:
+            for attachment in submission.attachments:
+                self.download_file(attachment.id, is_submission=True)
+
+        #NOTE: submission_full also have "submission_html_comments" which contain html content in "comment" attribute
+        for comment_obj in assignment.submission_full.submission_html_comments:
+            comment_obj.html_mod = self.process_html(comment_obj.comment)
+
+        _clean_obj(assignment.submission_full.attachments)
+        _clean_obj(assignment.submission_full)
+        self.assignments[id] = _clean_obj[assignment]
+        return True
+
+
+    # downloads cached view and stores to Topic object. including announcements.
+    # - this method currently utilizes cached course.get_full_discussion_topic(), but
+    # - could also use DiscussionTopic.get_entries() -> DiscussionEntry.get_replies()
+    def download_full_discussion_topic(self, topic: DiscussionTopic) -> bool:
+        # this just returns the JSON (in dict form) as is from the response, so
+        # no need to call _clean_obj() later
+        full_topic = self.course.get_full_discussion_topic(topic.id)
+        # TODO: html / text components to check: entry messages, replies
+        # -> NOTE: main message is actually in the topic itself, not here.
+        # TODO: download any file attachments
+        # -> NOTE: some of these are not associated with the course itself.
+        #    either just in "files" broadly, or in user's files. can also be 
+        #    located in attachment(s) attribute or inline in the entry message
+        topic.full_topic = full_topic
+        return True
+
+
+    # NOTE: currently I'm not expecting to have to request discussion topic objects individually
+    # i.e. with course.get_discussion_topic(id) so for now there's no method for that in this class
+    # This would become necessary if somehow a discussion topic link is found elsewhere (i.e. in modules)
+    # while not being retrievable through download_discussion_topics() somehow.
+
+    # this should be run if encountered in module item. modules should be retrieved after
+    # download_discussion_topics() and download_announcements() are already run, so we can
+    # minimize the requests done one-by-one. Not sure if there's actually any performance advantage
+    # of downloading all at once, but it seems more convenient.
+    def download_discussion_topic(self, id: int) -> bool:
+        if id in self.discussion_topics:
+            return False
+        topic = self.course.get_discussion_topic(id)
+        # NOTE: AFAIK, there's no way to know from module item if a topic is an announcement or not
+        topic.is_announcement = False
+        self.download_full_discussion_topic(topic)
+        self.discussion_topics[id] = _clean_obj(topic)
+        
+
+    def download_module_item(self, item: ModuleItem):
+        match item.type:
+            case "File":
+                self.download_file(item.content_id)
+            case "Page":
+                self.download_page(item.page_url)
+            case "Assignment":
+                self.download_assignment(item.content_id)
+            # TODO ...
+            case "Discussion":
+                # uses content_id
+                self.download_discussion_topic(item.content_id)
+            case "Quiz":
+                # uses content_id
+                pass
+            case "SubHeader":
+                pass
+            case "ExternalUrl":
+                # uses external_url
+                pass
+            case "ExternalTool":
+                # uses content_id & external_url
+                pass
+            case _:
+                pass
+
+        #modify item if necessary (i.e. relative url to the resource)
+        # (^ prob not necessary, can be pretty easily recreated from existing details)
+        return item
+
+
+
+
+    # ------ KEY HELPER METHOD
+
 
     #TODO
     def process_html(self, html_content: str | None) -> str:
@@ -223,153 +402,3 @@ class CourseDownloader:
         # in objects derived from original soup affect the original soup?)
 
         return soup.prettify()
-
-    def download_page(self, page_url: str) -> bool:
-        if page_url in self.pages:
-            return False
-        # Add to dict with temp value - address case of two resources referring to each
-        # other in html content
-        self.pages[page_url] = None
-        
-        page = self.course.get_page(page_url)
-        page.html_mod = self.process_html(page.body)
-
-        self.pages[page_url] = _clean_obj[page]
-        return True
-
-    def download_assignment(self, id: int, assignment: Assignment = None) -> bool:
-        if id in self.assignments:
-            return False
-        # Add to dict with temp value - address case of two resources referring to each
-        # other in html content
-        self.assignments[id] = None
-
-        if not assignment:    
-            assignment = self.course.get_assignment(id, include=["submission","score_statistics","ab_guid"])
-        
-        assignment.html_mod = self.process_html(assignment.description)
-        assignment.submission_full = assignment.get_submission(assignment.submission.user_id, include=["submission_history","submission_comments","submission_html_comments",
-                                                                  "rubric_assessment","assignment","visibility","course","user","group",
-                                                                  "read_status","student_entered_score"])
-
-        # grab file attachments
-        # this downloads for all submissions in sub history
-        # you may need to attach id to name since they're likely submitted with the same filename.
-        # perhaps you can also have this as a togglable option, some users may not care for old submissions
-        # TODO
-        for submission in assignment.submission_full.submission_history:
-            for attachment in submission.attachments:
-                self.download_file(attachment.id, is_submission=True)
-
-        #NOTE: submission_full also have "submission_html_comments" which contain html content in "comment" attribute
-        for comment_obj in assignment.submission_full.submission_html_comments:
-            comment_obj.html_mod = self.process_html(comment_obj.comment)
-
-        _clean_obj(assignment.submission_full.attachments)
-        _clean_obj(assignment.submission_full)
-        self.assignments[id] = _clean_obj[assignment]
-        return True
-
-    # downloads cached view and stores to Topic object. including announcements.
-    # - this method currently utilizes cached course.get_full_discussion_topic(), but
-    # - could also use DiscussionTopic.get_entries() -> DiscussionEntry.get_replies()
-    def download_full_discussion_topic(self, topic: DiscussionTopic) -> bool:
-        # this just returns the JSON (in dict form) as is from the response, so
-        # no need to call _clean_obj() later
-        full_topic = self.course.get_full_discussion_topic(topic.id)
-        # TODO: html / text components to check: entry messages, replies
-        # -> NOTE: main message is actually in the topic itself, not here.
-        # TODO: download any file attachments
-        # -> NOTE: some of these are not associated with the course itself.
-        #    either just in "files" broadly, or in user's files. can also be 
-        #    located in attachment(s) attribute or inline in the entry message
-        topic.full_topic = full_topic
-        return True
-
-    # NOTE: currently I'm not expecting to have to request discussion topic objects individually
-    # i.e. with course.get_discussion_topic(id) so for now there's no method for that in this class
-    # This would become necessary if somehow a discussion topic link is found elsewhere (i.e. in modules)
-    # while not being retrievable through download_discussion_topics() somehow.
-
-    # this should be run if encountered in module item. modules should be retrieved after
-    # download_discussion_topics() and download_announcements() are already run, so we can
-    # minimize the requests done one-by-one. Not sure if there's actually any performance advantage
-    # of downloading all at once, but it seems more convenient.
-    def download_discussion_topic(self, id: int) -> bool:
-        if id in self.discussion_topics:
-            return False
-        topic = self.course.get_discussion_topic(id)
-        # NOTE: AFAIK, there's no way to know from module item if a topic is an announcement or not
-        topic.is_announcement = False
-        self.download_full_discussion_topic(topic)
-        self.discussion_topics[id] = _clean_obj(topic)
-
-    def download_discussion_topics(self):
-        topics = self.course.get_discussion_topics(include = ["sections_user_count","sections"])
-        for topic in topics:
-            self.discussion_topics[topic.id] = None
-            topic.is_announcement = False
-            self.download_full_discussion_topic(topic)
-            self.discussion_topics[topic.id] = _clean_obj(topic)
-
-    def download_announcements(self):
-        announcements = self.course.get_discussion_topics(include = ["sections_user_count","sections"], only_announcements=True)
-        for announcement in announcements:
-            self.discussion_topics[announcement.id] = None
-            announcement.is_announcement = True
-            self.download_full_discussion_topic(announcement)
-            self.discussion_topics[announcement.id] = _clean_obj(announcement)
-        
-
-    def download_module_item(self, item: ModuleItem):
-        match item.type:
-            case "File":
-                self.download_file(item.content_id)
-            case "Page":
-                self.download_page(item.page_url)
-            case "Assignment":
-                self.download_assignment(item.content_id)
-            # TODO ...
-            case "Discussion":
-                # uses content_id
-                self.download_discussion_topic(item.content_id)
-            case "Quiz":
-                # uses content_id
-                pass
-            case "SubHeader":
-                pass
-            case "ExternalUrl":
-                # uses external_url
-                pass
-            case "ExternalTool":
-                # uses content_id & external_url
-                pass
-            case _:
-                pass
-
-        #modify item if necessary (i.e. relative url to the resource)
-        # (^ prob not necessary, can be pretty easily recreated from existing details)
-        return item
-
-
-    def download_modules(self):
-        modules = self.course.get_modules()
-        if not modules:
-            print("No modules exist for this course")
-            return
-
-        modules_list = []
-        for module in modules:
-            # retrieve items in module before deleting requester.
-            module_items = module.get_module_items(include=["content_details"])
-            module.items = []
-            for item in module_items:
-                # for each item, you should check what type it is and call the respective method
-                # to check if exists and if not, retrieve it and store in the respective dictionary
-                # for the course.
-                self.download_module_item(item)
-                module.items.append(_clean_obj(item))
-            modules_list.append(_clean_obj(module))
-            
-        self.modules = modules_list
-        
