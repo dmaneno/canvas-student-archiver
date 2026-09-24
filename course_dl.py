@@ -4,6 +4,8 @@ from canvasapi.course import Course
 from canvasapi.module import ModuleItem
 from canvasapi.discussion_topic import DiscussionTopic
 from canvasapi.assignment import Assignment
+from canvasapi.file import File
+from canvasapi.page import Page
 
 import jsonpickle
 from bs4 import BeautifulSoup
@@ -54,38 +56,49 @@ class CourseDownloader:
         # will create necessary course_dir parent directory
         os.makedirs(files_dir, exist_ok=True)
 
-    # main method
+    # main method that calls everything else
     def download_resources(self):
-        # home page / syllabus
-        self.download_home_page()
-        # download assignments
+        # syllabus + home page
+        self.course.syllabus_body_mod = self.process_html(self.course.syllabus_body)
+        if self.course.default_view == "wiki":
+            self.download_page("home")
+        # assignments
         self.download_assignments()
-        
+        # files
+        # only has effect if "files" tab was enabled for course
+
         # download pages (?)
+        # only has effect if the "pages" tab was enabled
+
         # download modules
+        self.download_modules()
         # download announcements, discussion topics
+        self.download_discussion_topics()
+        self.download_announcements()
         # clean course obj?
         pass
 
-    def download_home_page(self):
-        match self.course.default_view:
-            case "wiki":
-                self.download_page("home")
-            case "syllabus":
-                self.course.html_mod = self.process_html(self.course.syllabus_body)
-            # other types are 'modules', 'assignments', and 'feed'.
-            # first two will be downloaded later in download_resources(),
-            # and feed is not really important imo.
 
     def download_assignments(self):
         assignments = self.course.get_assignments(include=["submission","score_statistics","ab_guid"])
         for assignment in assignments:
             self.download_assignment(assignment.id, assignment)
 
+    def download_files(self):
+        files = self.course.get_files(include = ["user", "usage_rights"]) #TODO
+        for file in files:
+            self.download_file(file.id, file)
+
 
 
     def save_as_jsons():
         pass
+
+
+
+
+
+    # --- Atomic resources ---
 
     # FOR MOST COURSE RESOURCES:
     # - check if already downloaded/saved to dict
@@ -96,12 +109,14 @@ class CourseDownloader:
 
     # NOTE: File name should be same / stored in file json for it to be retrieved later
     # by viewer
-    def download_file(self, id: int, is_submission: bool = False) -> bool:
+    def download_file(self, id: int, file: File = None, is_submission: bool = False) -> bool:
         # Downloads file if it hasn't already been downloaded
         if id in self.files:
             return False
-        
-        file = self.course.get_file(id, include = ["user", "usage_rights"])
+
+        if not file:        
+            file = self.course.get_file(id, include = ["user", "usage_rights"])
+
         # TODO: more types? submission, attachment, image. keep in separate folders?
         # so it may make more sense to change this to a string "file type"
         # embedded images are likely to be downloaded in a different way though.
@@ -117,6 +132,8 @@ class CourseDownloader:
             print(f"File size is above set threshold; marked as not downloaded")
             file.downloaded = False
         else:
+            #TODO: if it does exist, another file has the same name, but different id.
+            # append the id or something, and update file.filename attribute to reflect it
             if not os.path.exists(filepath):
                 file.download(filepath)
                 print(f"Downloaded: {file_name}")
