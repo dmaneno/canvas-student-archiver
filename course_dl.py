@@ -40,7 +40,6 @@ class CourseDownloader:
     #( most of below are int(id) to response.json() which could be list or dict)
     pages: dict
     files: dict
-    folders: dict
     assignments: dict
     # submissions: dict
     discussion_topics: dict
@@ -205,22 +204,17 @@ class CourseDownloader:
 
 
     def get_full_folder_path(self, folder_id: int) -> Path:
-        # catches null folder id (i.e. if it's at top-level folder already)
+        # catches null folder id
         if not folder_id:
             return None
-
-        # try except, since some folders are not accessible by student (unauthorized)
+        
         try:
             folder = self.course.get_folder(folder_id)
         except:
-            # likely folder is inaccessible to user - default to None
+            # folder is likely inaccessible to student (unauthorized) - default to None
             return None
         
-        self.folders[folder_id] = folder
-
-        parent_folder = self.get_full_folder_path(folder.parent_folder_id)
-
-        return Path(parent_folder, folder.name)
+        return Path(folder.full_name)
 
 
     def download_page(self, page_url: str, page: Page = None) -> bool:
