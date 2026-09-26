@@ -11,6 +11,8 @@ from canvasapi.page import Page
 import jsonpickle
 from bs4 import BeautifulSoup
 
+from util import parse_size
+
 def _clean_obj(obj: object):
     # python pass-by-object-reference, but return anyway so it can be placed within
     # append statement
@@ -32,7 +34,6 @@ class CourseDownloader:
     course_dir: Path
     files_dir: Path
     # in bytes. -1 = no thresh, 0 = don't download anything, anything higher is regular thresh
-    # TODO: give option to enter and convert string value like 500mb, 2gb, etc. 
     file_size_thresh: int  
 
     # Store each dict into a separate json in course's folder
@@ -48,15 +49,16 @@ class CourseDownloader:
     # videos
     # media_gallery
 
-    def __init__(self, course: Course, course_dir: Path, file_size_thresh: int = -1):
+    def __init__(self, course: Course, course_dir: Path, file_size_thresh: str|int = -1):
         self.course = course
         self.course_dir = course_dir
-        self.file_size_thresh = file_size_thresh # default is no threshold
-        # submissions, attachments, imgs
-
-        # will create necessary course_dir parent directory
         self.files_dir: Path = course_dir / "files"
         self.files_dir.mkdir(parents=True, exist_ok=True)
+
+        # default is no threshold (-1)
+        self.file_size_thresh = parse_size(file_size_thresh)
+        # submissions, attachments, imgs
+
 
     # main method that calls everything else
     def download_resources(self):
