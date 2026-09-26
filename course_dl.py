@@ -30,6 +30,7 @@ def _write_html(html:str, path: Path):
 class CourseDownloader:
     course: Course
     course_dir: Path
+    files_dir: Path
     # in bytes. -1 = no thresh, 0 = don't download anything, anything higher is regular thresh
     # TODO: give option to enter and convert string value like 500mb, 2gb, etc. 
     file_size_thresh: int  
@@ -39,6 +40,7 @@ class CourseDownloader:
     #( most of below are int(id) to response.json() which could be list or dict)
     pages: dict
     files: dict
+    folders: dict
     assignments: dict
     # submissions: dict
     discussion_topics: dict
@@ -54,8 +56,8 @@ class CourseDownloader:
         # submissions, attachments, imgs
 
         # will create necessary course_dir parent directory
-        files_dir: Path = course_dir / "files"
-        files_dir.mkdir(parents=True, exist_ok=True)
+        self.files_dir: Path = course_dir / "files"
+        self.files_dir.mkdir(parents=True, exist_ok=True)
 
     # main method that calls everything else
     def download_resources(self):
@@ -178,11 +180,10 @@ class CourseDownloader:
         file.is_submission = is_submission
 
         file_name = file.filename
-        filepath: Path = self.course_dir / "files" / file_name
-
-        # TODO: folders??
-        # makedir if folder doesn't exist
-        # try except, since some folders are not accessible by student (unauthorized)
+        folder_path = self.get_full_folder_path(file.folder_id)
+        parent_dir = self.files_dir / folder_path if folder_path else self.files_dir
+        parent_dir.mkdir(parents=True, exist_ok=True)
+        filepath: Path = file_name
 
         # size in bytes
         if self.file_size_thresh > -1 and file.size > self.file_size_thresh:
@@ -201,6 +202,25 @@ class CourseDownloader:
         # Add file info to dict
         self.files[id] = _clean_obj(file)
         return True
+
+
+    def get_full_folder_path(self, folder_id: int) -> Path:
+        # catches null folder id (i.e. if it's at top-level folder already)
+        if not folder_id:
+            return None
+
+        # try except, since some folders are not accessible by student (unauthorized)
+        try:
+            folder = self.course.get_folder(folder_id)
+        except:
+            # likely folder is inaccessible to user - default to None
+            return None
+        
+        self.folders[folder_id] = folder
+
+        parent_folder = self.get_full_folder_path(folder.parent_folder_id)
+
+        return Path(parent_folder, folder.name)
 
 
     def download_page(self, page_url: str, page: Page = None) -> bool:
