@@ -176,7 +176,14 @@ class CourseDownloader:
         # TODO: more types? submission, attachment, image. keep in separate folders?
         # so it may make more sense to change this to a string "file type"
         # embedded images are likely to be downloaded in a different way though.
+
         file.is_submission = is_submission
+        if is_submission:
+            # multiple submissions to same assignment likely have same filename -
+            # append ID to end of stem
+            file.og_filename = file.filename #NOTE: creating new attribute
+            og = Path(file.og_filename)
+            file.filename = f"{og.stem}_{id}{og.suffix}"
 
         folder_path = self.get_full_folder_path(file.folder_id)
         parent_dir = self.files_dir / folder_path if folder_path else self.files_dir
@@ -190,20 +197,13 @@ class CourseDownloader:
         else:
             if not file_path.is_file():
                 file.download(file_path)
+                print(f"Downloaded: {file.filename}")
             else:
-                # If it does exist, another file has the same name, but different id.
-                # (if this specific id was already downloaded, it wouldn't get past the first
-                # conditional of this method).
-                # Append the id or something, and update file.filename attribute to reflect it
-                file.og_filename = file.filename #NOTE: creating new attribute
-                og = Path(file.og_filename)
-                file.filename = f"{og.stem}_{id}{og.suffix}"
-                file_path = file_path.with_name(file.filename)
-                file.download(file_path)
-            file.downloaded = True
+                print(f"File Already Exists: {file.filename}")
+            file.downloaded = True #NOTE: creating new attribute
 
         # Add file info to dict
-        file.file_path = file_path
+        file.file_path = file_path #NOTE: creating new attribute
         self.files[id] = _clean_obj(file)
         return True
 
@@ -212,13 +212,11 @@ class CourseDownloader:
         # catches null folder id
         if not folder_id:
             return None
-        
         try:
             folder = self.course.get_folder(folder_id)
         except:
             # folder is likely inaccessible to student (unauthorized) - default to None
             return None
-        
         return Path(folder.full_name)
 
 
