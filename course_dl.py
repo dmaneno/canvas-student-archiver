@@ -178,27 +178,32 @@ class CourseDownloader:
         # embedded images are likely to be downloaded in a different way though.
         file.is_submission = is_submission
 
-        file_name = file.filename
         folder_path = self.get_full_folder_path(file.folder_id)
         parent_dir = self.files_dir / folder_path if folder_path else self.files_dir
         parent_dir.mkdir(parents=True, exist_ok=True)
-        filepath: Path = file_name
+        file_path: Path = parent_dir / file.filename
 
         # size in bytes
-        if self.file_size_thresh > -1 and file.size > self.file_size_thresh:
+        if self.file_size_thresh >= 0 and file.size > self.file_size_thresh:
             print(f"File size is above set threshold; marked as not downloaded")
             file.downloaded = False
         else:
-            #TODO: if it does exist, another file has the same name, but different id.
-            # append the id or something, and update file.filename attribute to reflect it
-            if not filepath.is_file():
-                file.download(filepath)
-                print(f"Downloaded: {file_name}")
+            if not file_path.is_file():
+                file.download(file_path)
             else:
-                print(f"File already exists: {file_name}")
+                # If it does exist, another file has the same name, but different id.
+                # (if this specific id was already downloaded, it wouldn't get past the first
+                # conditional of this method).
+                # Append the id or something, and update file.filename attribute to reflect it
+                file.og_filename = file.filename #NOTE: creating new attribute
+                og = Path(file.og_filename)
+                file.filename = f"{og.stem}_{id}{og.suffix}"
+                file_path = file_path.with_name(file.filename)
+                file.download(file_path)
             file.downloaded = True
 
         # Add file info to dict
+        file.file_path = file_path
         self.files[id] = _clean_obj(file)
         return True
 
