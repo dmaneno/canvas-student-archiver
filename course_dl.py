@@ -112,7 +112,7 @@ class CourseDownloader:
         announcements = self.course.get_discussion_topics(include = ["sections_user_count","sections"], only_announcements=True)
         for announcement in announcements:
             self.discussion_topics[announcement.id] = None
-            announcement.is_announcement = True
+            announcement.is_announcement = True #NOTE: new attribute
             self.download_full_discussion_topic(announcement)
             self.discussion_topics[announcement.id] = _clean_obj(announcement)
 
@@ -121,7 +121,7 @@ class CourseDownloader:
         topics = self.course.get_discussion_topics(include = ["sections_user_count","sections"])
         for topic in topics:
             self.discussion_topics[topic.id] = None
-            topic.is_announcement = False
+            topic.is_announcement = False #NOTE: new attribute
             self.download_full_discussion_topic(topic)
             self.discussion_topics[topic.id] = _clean_obj(topic)
 
@@ -179,11 +179,11 @@ class CourseDownloader:
         # so it may make more sense to change this to a string "file type"
         # embedded images are likely to be downloaded in a different way though.
 
-        file.is_submission = is_submission
+        file.is_submission = is_submission #NOTE: new attribute
         if is_submission:
             # multiple submissions to same assignment likely have same filename -
             # append ID to end of stem
-            file.og_filename = file.filename #NOTE: creating new attribute
+            file.og_filename = file.filename #NOTE: new attribute
             og = Path(file.og_filename)
             file.filename = f"{og.stem}_{id}{og.suffix}"
 
@@ -202,10 +202,10 @@ class CourseDownloader:
                 print(f"Downloaded: {file.filename}")
             else:
                 print(f"File Already Exists: {file.filename}")
-            file.downloaded = True #NOTE: creating new attribute
+            file.downloaded = True #NOTE: new attribute
 
         # Add file info to dict
-        file.file_path = file_path #NOTE: creating new attribute
+        file.file_path = file_path #NOTE: new attribute
         self.files[id] = _clean_obj(file)
         return True
 
@@ -232,7 +232,7 @@ class CourseDownloader:
         if not page:
             page = self.course.get_page(page_url)
 
-        page.html_mod = self.process_html(page.body)
+        page.html_mod = self.process_html(page.body) #NOTE: new attribute
 
         self.pages[page_url] = _clean_obj[page]
         return True
@@ -247,8 +247,10 @@ class CourseDownloader:
 
         if not assignment:    
             assignment = self.course.get_assignment(id, include=["submission","score_statistics","ab_guid"])
-        
+
+        #NOTE: new attribute
         assignment.html_mod = self.process_html(assignment.description)
+        #NOTE: new attribute
         assignment.submission_full = assignment.get_submission(assignment.submission.user_id, include=["submission_history","submission_comments","submission_html_comments",
                                                                   "rubric_assessment","assignment","visibility","course","user","group",
                                                                   "read_status","student_entered_score"])
@@ -264,7 +266,7 @@ class CourseDownloader:
 
         #NOTE: submission_full also have "submission_html_comments" which contain html content in "comment" attribute
         for comment_obj in assignment.submission_full.submission_html_comments:
-            comment_obj.html_mod = self.process_html(comment_obj.comment)
+            comment_obj.html_mod = self.process_html(comment_obj.comment) #NOTE: new attribute
 
         _clean_obj(assignment.submission_full.attachments)
         _clean_obj(assignment.submission_full)
@@ -285,7 +287,7 @@ class CourseDownloader:
         # -> NOTE: some of these are not associated with the course itself.
         #    either just in "files" broadly, or in user's files. can also be 
         #    located in attachment(s) attribute or inline in the entry message
-        topic.full_topic = full_topic
+        topic.full_topic = full_topic #NOTE: new attribute
         return True
 
 
@@ -303,7 +305,7 @@ class CourseDownloader:
             return False
         topic = self.course.get_discussion_topic(id)
         # NOTE: AFAIK, there's no way to know from module item if a topic is an announcement or not
-        topic.is_announcement = False
+        topic.is_announcement = False #NOTE: new attribute
         self.download_full_discussion_topic(topic)
         self.discussion_topics[id] = _clean_obj(topic)
         
