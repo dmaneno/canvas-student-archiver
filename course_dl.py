@@ -165,7 +165,7 @@ class CourseDownloader:
 
     # NOTE: File name should be same / stored in file json for it to be retrieved later
     # by viewer
-    def download_file(self, id: int, file: File = None, is_submission: bool = False) -> bool:
+    def download_file(self, id: int, file: File|None = None, is_submission: bool = False) -> bool:
         # Downloads file if it hasn't already been downloaded
         if id in self.files:
             return False
@@ -208,7 +208,7 @@ class CourseDownloader:
         return True
 
 
-    def get_full_folder_path(self, folder_id: int) -> Path:
+    def get_full_folder_path(self, folder_id: int|None) -> Path|None:
         # catches null folder id
         if not folder_id:
             return None
@@ -220,7 +220,7 @@ class CourseDownloader:
         return Path(folder.full_name)
 
 
-    def download_page(self, page_url: str, page: Page = None) -> bool:
+    def download_page(self, page_url: str, page: Page|None = None) -> bool:
         if page_url in self.pages:
             return False
         # Add to dict with temp value - address case of two resources referring to each
@@ -236,7 +236,7 @@ class CourseDownloader:
         return True
 
 
-    def download_assignment(self, id: int, assignment: Assignment = None) -> bool:
+    def download_assignment(self, id: int, assignment: Assignment|None = None) -> bool:
         if id in self.assignments:
             return False
         # Add to dict with temp value - address case of two resources referring to each
@@ -343,7 +343,7 @@ class CourseDownloader:
 
 
     #TODO
-    def process_html(self, html_content: str | None) -> str:
+    def process_html(self, html_content: str|None) -> str:
         # NoneType values
         if not html_content:
             return ""
