@@ -2,7 +2,7 @@ import os
 import re
 from pathlib import Path
 from canvasapi.course import Course
-from canvasapi.module import ModuleItem
+from canvasapi.module import Module, ModuleItem
 from canvasapi.discussion_topic import DiscussionTopic
 from canvasapi.assignment import Assignment
 from canvasapi.file import File
@@ -308,7 +308,12 @@ class CourseDownloader:
         topic.is_announcement = False #NOTE: new attribute
         self.download_full_discussion_topic(topic)
         self.discussion_topics[id] = _clean_obj(topic)
-        
+
+
+    # TODO: extract relevant code from download_modules
+    def download_module(self, id, module: Module|None = None):
+        pass
+
 
     def download_module_item(self, item: ModuleItem):
         match item.type:
@@ -374,6 +379,7 @@ class CourseDownloader:
                 # (see comment in discussion methods)
                 # f"courses/{self.course.id}/..." from old repo may not be necessary
 
+                # https://developerdocs.instructure.com/services/canvas/basics/file.endpoint_attributes
                 match returntype:
                     case "File":
                         content_id = int(endpoint.split("/files/")[-1])
@@ -387,17 +393,24 @@ class CourseDownloader:
                     case "Discussion":
                         content_id = int(endpoint.split('/discussion_topics/')[-1])
                         self.download_discussion_topic(content_id)
+                    case "Module":
+                        content_id = int(endpoint.split('/modules/')[-1]) #TODO: verify
+                        self.download_module(content_id)
+                    case "Folder":
+                        pass
                     case "Quiz":
                         # uses content_id
                         pass
-                    case "SubHeader":
+                    case "SessionlessLaunchUrl":
                         pass
-                    case "ExternalUrl":
-                        # uses external_url
-                        pass
-                    case "ExternalTool":
-                        # uses content_id & external_url
-                        pass
+                    # case "SubHeader":
+                    #     pass
+                    # case "ExternalUrl":
+                    #     # uses external_url
+                    #     pass
+                    # case "ExternalTool":
+                    #     # uses content_id & external_url
+                    #     pass
                     case _:
                         pass
 
