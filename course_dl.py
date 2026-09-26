@@ -1,5 +1,6 @@
 import os
 import re
+from pathlib import Path
 from canvasapi.course import Course
 from canvasapi.module import ModuleItem
 from canvasapi.discussion_topic import DiscussionTopic
@@ -17,18 +18,18 @@ def _clean_obj(obj: object):
         delattr(obj, "_requester")
     return obj
 
-def _write_obj_json(obj: object, path: str):
+def _write_obj_json(obj: object, path: Path):
     json = jsonpickle.encode(obj,unpicklable=False, indent=4)
     with open(path,"w") as out_file:
         out_file.write(json)
 
-def _write_html(html:str, path:str):
+def _write_html(html:str, path: Path):
     with open(path,"w") as out_file:
         out_file.write(html)
 
 class CourseDownloader:
     course: Course
-    course_dir: str
+    course_dir: Path
     # in bytes. -1 = no thresh, 0 = don't download anything, anything higher is regular thresh
     # TODO: give option to enter and convert string value like 500mb, 2gb, etc. 
     file_size_thresh: int  
@@ -46,15 +47,15 @@ class CourseDownloader:
     # videos
     # media_gallery
 
-    def __init__(self, course: Course, course_dir: str, file_size_thresh: int = -1):
+    def __init__(self, course: Course, course_dir: Path, file_size_thresh: int = -1):
         self.course = course
         self.course_dir = course_dir
-        files_dir = os.path.join(course_dir, "files")
         self.file_size_thresh = file_size_thresh # default is no threshold
         # submissions, attachments, imgs
 
         # will create necessary course_dir parent directory
-        os.makedirs(files_dir, exist_ok=True)
+        files_dir: Path = course_dir / "files"
+        files_dir.mkdir(parents=True, exist_ok=True)
 
     # main method that calls everything else
     def download_resources(self):
@@ -177,11 +178,11 @@ class CourseDownloader:
         file.is_submission = is_submission
 
         file_name = file.filename
-        # NOTE: from old repo. check if necessary to keep
-        # file_name = util.makeValidFilename(file.filename)
-        filepath = os.path.join(self.course_dir, "files", file_name)
+        filepath: Path = self.course_dir / "files" / file_name
 
         # TODO: folders??
+        # makedir if folder doesn't exist
+        # try except, since some folders are not accessible by student (unauthorized)
 
         # size in bytes
         if self.file_size_thresh > -1 and file.size > self.file_size_thresh:
@@ -190,7 +191,7 @@ class CourseDownloader:
         else:
             #TODO: if it does exist, another file has the same name, but different id.
             # append the id or something, and update file.filename attribute to reflect it
-            if not os.path.exists(filepath):
+            if not filepath.is_file():
                 file.download(filepath)
                 print(f"Downloaded: {file_name}")
             else:
