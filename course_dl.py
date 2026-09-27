@@ -432,8 +432,8 @@ class CourseDownloader:
 
                 og_href = link['href']
                 local_href = link['href'].split(domain)[-1]
-                old_attributes = f"\"{og_href}\""
-                new_attributes = f"\"{local_href}\" og_href=\"{og_href}\""
+                old_attributes = f'"{og_href}"'
+                new_attributes = f'"{local_href}" og_href="{og_href}"'
 
                 output_html = output_html.replace(old_attributes, new_attributes)
 

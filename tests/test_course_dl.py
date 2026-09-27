@@ -1,4 +1,5 @@
 import pytest
+import re
 from pathlib import Path
 from course_dl import CourseDownloader
 from canvasapi.course import Course
@@ -91,7 +92,19 @@ def test_process_html_canvas_links(mocker, course_downloader, html_content_all_t
     mock_module_dl.assert_called_once_with(716)
 
     # - html returned is as expected
-    # TODO: assert output == expected
+    # - - no hrefs should still have original domain, i.e. all hrefs should be replaced with local hrefs
+
+    # NOTE: this one doesn't work because string search still matches with 'og_href="http://canvas.mock...'
+    # could consider changing og_href to a different attribute name but not sure what else to call it yet
+    # assert 'href="https://canvas.mock.edu/courses' not in output
+
+    assert len(re.findall('href="/courses/', output)) == 5
+    assert len(re.findall('og_href="https://canvas.mock.edu/courses/', output)) == 5
+    # not the most thorough check tbh, but could do a separate parametrized test to check specific
+    # resource types hrefs are properly being modified
+    
+    # NOTE: the specific formatting of the output (i.e. order of attributes) is not checked
+    # in this test, though it is preferred to preserve the original formatting if possible.
     print(output) # view output with pytest -rP, pytest -rX, or pytest -rA after running tests
 
 
