@@ -45,7 +45,8 @@ class CourseDownloader:
     # submissions: dict
     discussion_topics: dict
     announcements: dict
-    modules: list # just list or dict for ids as well?
+    modules: dict
+    module_items: dict
     # videos
     # media_gallery
 
@@ -128,24 +129,8 @@ class CourseDownloader:
 
     def download_modules(self):
         modules = self.course.get_modules()
-        if not modules:
-            print("No modules exist for this course")
-            return
-
-        modules_list = []
         for module in modules:
-            # retrieve items in module before deleting requester.
-            module_items = module.get_module_items(include=["content_details"])
-            module.items = []
-            for item in module_items:
-                # for each item, you should check what type it is and call the respective method
-                # to check if exists and if not, retrieve it and store in the respective dictionary
-                # for the course.
-                self.download_module_item(item)
-                module.items.append(_clean_obj(item))
-            modules_list.append(_clean_obj(module))
-            
-        self.modules = modules_list
+            self.download_module(module.id, module)
 
 
     # TODO
@@ -310,12 +295,35 @@ class CourseDownloader:
         self.discussion_topics[id] = _clean_obj(topic)
 
 
-    # TODO: extract relevant code from download_modules
-    def download_module(self, id, module: Module|None = None):
-        pass
+    def download_module(self, id: int, module: Module|None = None) -> bool:
+        if id in self.modules:
+            return False
+        self.modules[id] = None
+        if not module:
+            module = self.course.get_module(id)
+
+        module_items = module.get_module_items(include=["content_details"])
+        module.items = []
+        for item in module_items:
+            self.download_module_item(item.id, id, item)
+            module.items.append(item.id) # to make items easier to retrieve from module later
+
+        self.modules[id] = _clean_obj(module)
+        return True
 
 
-    def download_module_item(self, item: ModuleItem):
+    def download_module_item(self, id: int, module_id: int, item: ModuleItem|None = None) -> bool:
+        """
+        Checks what resource type the module item is, downloads the respective resource, and stores
+        module item metadata in self.module_items.
+        """
+        if id in self.module_items:
+            return False
+        self.module_items[id] = None
+        if not item:
+            # unlike other resources, getting mod item requires both mod item id and mod id
+            item = self.course.get_module(module_id).get_module_item(id, include=["content_details"])
+
         match item.type:
             case "File":
                 self.download_file(item.content_id)
@@ -323,14 +331,13 @@ class CourseDownloader:
                 self.download_page(item.page_url)
             case "Assignment":
                 self.download_assignment(item.content_id)
-            # TODO ...
             case "Discussion":
-                # uses content_id
                 self.download_discussion_topic(item.content_id)
+            case "SubHeader":
+                pass
+            # NOTE: consider implementing in future
             case "Quiz":
                 # uses content_id
-                pass
-            case "SubHeader":
                 pass
             case "ExternalUrl":
                 # uses external_url
@@ -341,9 +348,8 @@ class CourseDownloader:
             case _:
                 pass
 
-        #modify item if necessary (i.e. relative url to the resource)
-        # (^ prob not necessary, can be pretty easily recreated from existing details)
-        return item
+        self.module_items[id] = _clean_obj(item)
+        return True
 
 
 
@@ -396,7 +402,7 @@ class CourseDownloader:
                         content_id = int(endpoint.split('/discussion_topics/')[-1])
                         self.download_discussion_topic(content_id)
                     case "Module":
-                        content_id = int(endpoint.split('/modules/')[-1]) #TODO: verify
+                        content_id = int(endpoint.split('/modules/')[-1])
                         self.download_module(content_id)
                     case "Folder":
                         pass
