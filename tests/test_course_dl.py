@@ -5,9 +5,11 @@ from canvasapi.course import Course
 from canvasapi.requester import Requester
 
 @pytest.fixture
-def course_downloader():
-#     mock_requester = mocker.Mock(spec=Requester)
-    course = Course(Requester(base_url="canvas.mock.edu", cookies={}), attributes={})
+def course_downloader(mocker):
+    mock_requester = mocker.Mock(spec=Requester)
+    mock_requester.original_url = "canvas.mock.edu"
+    course = Course(mock_requester, attributes={})
+    # course = Course(Requester(base_url="canvas.mock.edu", cookies={}), attributes={})
     return CourseDownloader(course, Path("./test_course"))
 
 
