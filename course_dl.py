@@ -365,6 +365,8 @@ class CourseDownloader:
         # - kaltura / video links
         # - external links - if leads to a file, maybe try to download? not sure yet
 
+        output_html = html_content
+
         soup = BeautifulSoup(html_content, 'lxml')
         links = soup.find_all('a')
 
@@ -414,15 +416,28 @@ class CourseDownloader:
                     case _:
                         pass
 
+                # TODO: modifying and returning the html using the soup structure doesn't preserve
+                # the original formatting of the input html.
+                # Perhaps use soup just for finding necessary information, and then
+                # modify and return using basic string / RE searching on a copy of the original html string
+
                 # turn href to local url. maybe save the original in a new attribute "original_href"
                 # should be like /courses/:courseid/:resource_type/:id_or_url
                 # some original hrefs have additional parameters like "download?wrap=1"
-                link['og_href'] = link['href']
+                # link['og_href'] = link['href']
                 # domain as stored in _requester.original_url has no trailing '/'
                 # so splitting this way keeps the '/' in front of 'courses'
                 # (see Canvas.__init__ in canvas.py)
-                link['href'] = link['href'].split(domain)[-1]
+                # link['href'] = link['href'].split(domain)[-1]
 
+                og_href = link['href']
+                local_href = link['href'].split(domain)[-1]
+                old_attributes = f"\"{og_href}\""
+                new_attributes = f"\"{local_href}\" og_href=\"{og_href}\""
+
+                output_html = output_html.replace(old_attributes, new_attributes)
+
+        # ------ TODO: other types of links and embedded content ------
 
         # embedded images / links
         imgs = soup.find_all('img')
@@ -435,5 +450,6 @@ class CourseDownloader:
 
         # modify and return html from beautifulsoup (NOTE: need to test: do changes 
         # in objects derived from original soup affect the original soup?)
-
-        return soup.prettify()
+        #  -> yes, but format is not preserved
+        # return soup.prettify()
+        return output_html
