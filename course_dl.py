@@ -7,6 +7,7 @@ from canvasapi.discussion_topic import DiscussionTopic
 from canvasapi.assignment import Assignment
 from canvasapi.file import File
 from canvasapi.page import Page
+from canvasapi.util import combine_kwargs
 
 import jsonpickle
 from bs4 import BeautifulSoup
@@ -52,6 +53,10 @@ class CourseDownloader:
 
     def __init__(self, course: Course, course_dir: Path, file_size_thresh: str|int = -1):
         self.course = course
+        self._requester = course._requester
+        # make a deep copy, not a reference?
+        # though maybe it doesn't matter since it only gets deleted at the end anyway.
+
         self.course_dir = course_dir
         self.files_dir: Path = course_dir / "files"
         self.files_dir.mkdir(parents=True, exist_ok=True)
@@ -146,9 +151,11 @@ class CourseDownloader:
 
     # NOTE: File name should be same / stored in file json for it to be retrieved later
     # by viewer
-    def download_file(self, id: int, file: File|None = None, is_submission: bool = False) -> bool:
+    def download_file(self, id: int, file: File|None = None, source: str = "courses",
+                      source_id: int|None = None, is_submission: bool = False,
+                      assignment_name: str|None = None) -> bool:
         # Downloads file if it hasn't already been downloaded
-        if id in self.files:
+        if id in self.files: #TODO - separate dict for each file source?
             return False
 
         if not file:        
@@ -158,16 +165,25 @@ class CourseDownloader:
         # so it may make more sense to change this to a string "file type"
         # embedded images are likely to be downloaded in a different way though.
 
+        # TODO
+        # source, source_id, relevant_course_id
+        # is_submission_attachment, assignment_id
+
+
+        folder_path = self.get_full_folder_path(file.folder_id)
+        source_path = self.files_dir / source / str(source_id)
+        parent_dir = source_path / folder_path if folder_path else source_path
+
+
         file.is_submission = is_submission #NOTE: new attribute
         if is_submission:
+            parent_dir = parent_dir / assignment_name
             # multiple submissions to same assignment likely have same filename -
             # append ID to end of stem
             file.og_filename = file.filename #NOTE: new attribute
             og = Path(file.og_filename)
             file.filename = f"{og.stem}_{id}{og.suffix}"
 
-        folder_path = self.get_full_folder_path(file.folder_id)
-        parent_dir = self.files_dir / folder_path if folder_path else self.files_dir
         parent_dir.mkdir(parents=True, exist_ok=True)
         file_path: Path = parent_dir / file.filename
 
@@ -188,6 +204,52 @@ class CourseDownloader:
         self.files[id] = _clean_obj(file)
         return True
 
+
+    def download_file_by_url(self, url: str, id: int|None = None, is_submission:bool = False,
+                             assignment_name: str|None = None):
+        """
+        Downloads Canvas files and attachments by url. This includes files that are not directly
+        from course files, but are relevant to the course.
+        """
+        # I'm choosing to deviate from the underlying structure of Canvas's resources since Users
+        # are probably a separate DB table from courses, but for the purposes of archiving COURSES
+        # I don't really want to bother requesting / storing more information from other users than
+        # is necessary.
+        # Thus, I'll opt to just request the relevant files directly and store under the Course anyway,
+        # instead of doing something like canvas.get_user().get_file().
+
+        # This does make things complicated for accessing via local urls in the viewer... like /files/id
+        # needs to direct to the file that's associated with this course?
+        # Maybe the resulting dicts are combined on the Canvas level call.
+        if not id:
+            id = url.split("/files/")[-1].split('/')[0]
+        source:str
+        source_id:int
+
+        if "/courses/" in url:
+            self.download_file(id, is_submission=is_submission, assignment_name=assignment_name)
+        elif "/groups/" in url:
+            source = "groups"
+            source_id = url.split("/groups/")[-1].split('/')[0]
+        elif "/users/" in url:
+            source = "users"
+            source_id = url.split("/users/")[-1].split('/')[0]
+        else:
+            source = "canvas"
+            source_id = None
+
+        endpoint = f'{source}/{source_id}/files/{id}' if source != "canvas" else f'files/{id}'
+        file = self.get_file_from_endpoint(endpoint, include = ["user", "usage_rights"])
+
+        self.download_file(file.id, file, source, source_id, is_submission, assignment_name)
+
+
+    def get_file_from_endpoint(self, endpoint, **kwargs) -> File:
+        response = self.__requester.request(
+            "GET", endpoint, _kwargs=combine_kwargs(**kwargs)
+        )
+        return File(self.__requester, response.json())
+    
 
     def get_full_folder_path(self, folder_id: int|None) -> Path|None:
         # catches null folder id
@@ -286,13 +348,20 @@ class CourseDownloader:
 
         for entry in full_topic["view"]:
             entry["message_mod"] = self.process_html(entry["message"]) #NOTE: new attribute
-            for reply in entry["replies"]:
-                reply["message_mod"] = self.process_html(reply["message"]) #NOTE: new attribute
-
-        # TODO: download any file attachments
-        # -> NOTE: some of these are not associated with the course itself.
-        #    either just in "files" broadly, or in user's files. can also be 
-        #    located in attachment(s) attribute or inline in the entry message
+            if "replies" in entry:
+                for reply in entry["replies"]:
+                    reply["message_mod"] = self.process_html(reply["message"]) #NOTE: new attribute
+            if "attachment" in entry:
+                pass
+                
+                # TODO: download any file attachments
+                # -> NOTE: some of these are not associated with the course itself.
+                #    either just in "files" broadly, or in user's files. can also be 
+                #    located in attachment(s) attribute or inline in the entry message
+            # NOTE: according to docs, "attachments" (with 's') is deprecated and redundant,
+            # but still gets returned in cached view. I'll just remove it
+            entry.pop("attachments")
+                
 
         # Since full_topic is just a dict, no need to call _clean_obj()
         return full_topic
