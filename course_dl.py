@@ -110,21 +110,15 @@ class CourseDownloader:
 
 
     def download_announcements(self):
-        announcements = self.course.get_discussion_topics(include = ["sections_user_count","sections"], only_announcements=True)
+        announcements = self.course.get_discussion_topics(include = ["sections_user_count","sections","all_dates"], only_announcements=True)
         for announcement in announcements:
-            self.discussion_topics[announcement.id] = None
-            announcement.is_announcement = True #NOTE: new attribute
-            self.download_full_discussion_topic(announcement)
-            self.discussion_topics[announcement.id] = _clean_obj(announcement)
+            self.download_discussion_topic(announcement.id, announcement, is_announcement=True)
 
 
     def download_discussion_topics(self):
-        topics = self.course.get_discussion_topics(include = ["sections_user_count","sections"])
+        topics = self.course.get_discussion_topics(include = ["sections_user_count","sections","all_dates"])
         for topic in topics:
-            self.discussion_topics[topic.id] = None
-            topic.is_announcement = False #NOTE: new attribute
-            self.download_full_discussion_topic(topic)
-            self.discussion_topics[topic.id] = _clean_obj(topic)
+            self.download_discussion_topic(topic.id, topic)
 
 
     def download_modules(self):
@@ -259,40 +253,49 @@ class CourseDownloader:
         return True
 
 
-    # downloads cached view and stores to Topic object. including announcements.
-    # - this method currently utilizes cached course.get_full_discussion_topic(), but
-    # - could also use DiscussionTopic.get_entries() -> DiscussionEntry.get_replies()
-    def download_full_discussion_topic(self, topic: DiscussionTopic) -> bool:
-        # this just returns the JSON (in dict form) as is from the response, so
-        # no need to call _clean_obj() later
-        full_topic = self.course.get_full_discussion_topic(topic.id)
-        # TODO: html / text components to check: entry messages, replies
-        # -> NOTE: main message is actually in the topic itself, not here.
+    def download_discussion_topic(self, id: int, topic: DiscussionTopic|None = None, is_announcement: bool = False) -> bool:
+        if id in self.discussion_topics:
+            return False
+        self.discussion_topics[id] = None
+        if not topic:
+            topic = self.course.get_discussion_topic(id, include = ["sections_user_count","sections", "all_dates"])
+
+        # NOTE: AFAIK, there's no consistent way to know from module item if a topic is an announcement or not
+        # (the closest thing is "subscription_hold"). Rely on optional param
+        topic.is_announcement = is_announcement #NOTE: new attribute
+        topic.html_mod = self.process_html(topic.message) #NOTE: new attribute
+        topic.full_topic = self.download_full_discussion_topic(topic) #NOTE: new attribute
+
+        self.discussion_topics[id] = _clean_obj(topic)
+        return True
+
+
+    def download_full_discussion_topic(self, topic: DiscussionTopic) -> dict:
+        """
+        Retrieves, processes, and returns full view of topic (entries, replies, etc)
+        to be stored to topic object.
+
+        This method currently utilizes cached course.get_full_discussion_topic()
+        (the other option being DiscussionTopic.get_entries() -> loop with
+        DiscussionEntry.get_replies() ).
+        """
+        # NOTE: This just returns the JSON (in dict form) as is from the response.
+        # This means full_topic "attributes" are accessed by *dict keys*, not
+        # object attribute dot notation.
+        full_topic: dict = self.course.get_full_discussion_topic(topic.id)
+
+        for entry in full_topic["view"]:
+            entry["message_mod"] = self.process_html(entry["message"]) #NOTE: new attribute
+            for reply in entry["replies"]:
+                reply["message_mod"] = self.process_html(reply["message"]) #NOTE: new attribute
+
         # TODO: download any file attachments
         # -> NOTE: some of these are not associated with the course itself.
         #    either just in "files" broadly, or in user's files. can also be 
         #    located in attachment(s) attribute or inline in the entry message
-        topic.full_topic = full_topic #NOTE: new attribute
-        return True
 
-
-    # NOTE: currently I'm not expecting to have to request discussion topic objects individually
-    # i.e. with course.get_discussion_topic(id) so for now there's no method for that in this class
-    # This would become necessary if somehow a discussion topic link is found elsewhere (i.e. in modules)
-    # while not being retrievable through download_discussion_topics() somehow.
-
-    # this should be run if encountered in module item. modules should be retrieved after
-    # download_discussion_topics() and download_announcements() are already run, so we can
-    # minimize the requests done one-by-one. Not sure if there's actually any performance advantage
-    # of downloading all at once, but it seems more convenient.
-    def download_discussion_topic(self, id: int) -> bool:
-        if id in self.discussion_topics:
-            return False
-        topic = self.course.get_discussion_topic(id)
-        # NOTE: AFAIK, there's no way to know from module item if a topic is an announcement or not
-        topic.is_announcement = False #NOTE: new attribute
-        self.download_full_discussion_topic(topic)
-        self.discussion_topics[id] = _clean_obj(topic)
+        # Since full_topic is just a dict, no need to call _clean_obj()
+        return full_topic
 
 
     def download_module(self, id: int, module: Module|None = None) -> bool:

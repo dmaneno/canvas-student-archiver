@@ -11,6 +11,10 @@ def course_downloader(mocker):
     mock_requester.original_url = "canvas.mock.edu"
     course = Course(mock_requester, attributes={})
     # course = Course(Requester(base_url="canvas.mock.edu", cookies={}), attributes={})
+    # TODO: this does create a real directory that should probably be removed after.
+    # 1 - use yield and perform cleanup after
+    # 2 - perhaps name the directory with a timestamp to ensure name doesn't
+    # collide with an existing directory that happens to have the same name
     return CourseDownloader(course, Path("./test_course"))
 
 
