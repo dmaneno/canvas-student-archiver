@@ -38,14 +38,14 @@ class CourseDownloader:
     file_size_thresh: int  
 
     # Store each dict into a separate json in course's folder
-    course_dict: dict  #<- hm, maybe this one should be in the top level for the output folder.
+    # course_dict: dict  #<- hm, maybe this one should be in the top level for the output folder.
     #( most of below are int(id) to response.json() which could be list or dict)
-    pages: dict
     files: dict
+    pages: dict
     assignments: dict
     # submissions: dict
     discussion_topics: dict
-    announcements: dict
+    # announcements: dict
     modules: dict
     module_items: dict
     # videos
@@ -86,6 +86,7 @@ class CourseDownloader:
         # download modules
         self.download_modules()
         # TODO: clean course obj and save resources to jsons?
+        _clean_obj(self.course)
         self.save_as_jsons()
 
 
@@ -132,9 +133,28 @@ class CourseDownloader:
             self.download_module(module.id, module)
 
 
-    # TODO
     def save_as_jsons(self):
-        pass
+        objs = [
+            self.course,
+            self.files,
+            self.pages,
+            self.assignments,
+            self.discussion_topics,
+            self.modules,
+            self.module_items,
+            ]
+        names = [
+            "course",
+            "files",
+            "pages",
+            "assignments",
+            "discussion_topics",
+            "modules",
+            "module_items"
+        ]
+        for obj, name in zip(objs, names):
+            filepath = self.course_dir / f"{name}.json"
+            _write_obj_json(obj, filepath)
 
 
 
