@@ -238,7 +238,9 @@ class CourseDownloader:
             source = "canvas"
             source_id = None
 
-        endpoint = f'{source}/{source_id}/files/{id}' if source != "canvas" else f'files/{id}'
+        # endpoint apparently works without specifying source
+        # endpoint = f'{source}/{source_id}/files/{id}' if source != "canvas" else f'files/{id}'
+        endpoint = f'files/{id}'
         file = self.get_file_from_endpoint(endpoint, include = ["user", "usage_rights"])
 
         self.download_file(file.id, file, source, source_id, is_submission, assignment_name)
@@ -249,6 +251,24 @@ class CourseDownloader:
             "GET", endpoint, _kwargs=combine_kwargs(**kwargs)
         )
         return File(self.__requester, response.json())
+
+
+    
+    def download_attachment(self, attachment_json: dict, source_name: str|None = None,
+                            assignment_name: str|None = None):
+        """
+        Downloads an attachment file.
+        """
+        # NOTE: although attachments seem to match attributes of Files in manual tests,
+        # the canvas docs show that FileAttachment objects have only 4 of the attributes:
+        # content-type, url, filename, display_name.
+        # maybe just parse the id from url just in case it isn't there.
+        # If you really care about getting the complete file metadata for attachment, just re-call get_file
+        if "id" not in attachment_json:
+            attachment_json["id"] = attachment_json["url"].split("/files/")[-1].split('/')[0]
+        file = File(self._requester, attachment_json)
+        # TODO: pass in names. NEED TO VERIFY THAT THEY ARE VALID FOLDER / FILE NAMES
+        self.download_file(file.id, file)
     
 
     def get_full_folder_path(self, folder_id: int|None) -> Path|None:
@@ -303,7 +323,8 @@ class CourseDownloader:
         # TODO
         for submission in assignment.submission_full.submission_history:
             for attachment in submission.attachments:
-                self.download_file(attachment.id, is_submission=True)
+                # attachments are not guaranteed to be from course
+                self.download_attachment(attachment, assignment_name=assignment.name)
 
         #NOTE: submission_full also have "submission_html_comments" which contain html content in "comment" attribute
         for comment_obj in assignment.submission_full.submission_html_comments:
@@ -352,17 +373,13 @@ class CourseDownloader:
                 for reply in entry["replies"]:
                     reply["message_mod"] = self.process_html(reply["message"]) #NOTE: new attribute
             if "attachment" in entry:
-                pass
-                
-                # TODO: download any file attachments
+                self.download_attachment(entry["attachment"],source_name=topic.title)
                 # -> NOTE: some of these are not associated with the course itself.
-                #    either just in "files" broadly, or in user's files. can also be 
-                #    located in attachment(s) attribute or inline in the entry message
+                #    either just in "files" broadly, or in user's files.
             # NOTE: according to docs, "attachments" (with 's') is deprecated and redundant,
             # but still gets returned in cached view. I'll just remove it
             entry.pop("attachments")
-                
-
+        
         # Since full_topic is just a dict, no need to call _clean_obj()
         return full_topic
 
@@ -398,7 +415,7 @@ class CourseDownloader:
 
         match item.type:
             case "File":
-                self.download_file(item.content_id)
+                self.download_file(item.content_id) #TODO - likely from course, but verify
             case "Page":
                 self.download_page(item.page_url)
             case "Assignment":
@@ -463,7 +480,9 @@ class CourseDownloader:
                 match returntype:
                     case "File":
                         content_id = int(endpoint.split("/files/")[-1])
-                        self.download_file(content_id)
+                        # TODO
+                        self.download_file_by_url(endpoint)
+                        # self.download_file(content_id) 
                     case "Page":
                         page_url = endpoint.split("/pages/")[-1]
                         self.download_page(page_url)
