@@ -1,2 +1,5 @@
 __pycache__
 example_page.html
+credentials.yaml
+output/
+logs/

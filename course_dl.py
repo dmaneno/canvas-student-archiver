@@ -1,3 +1,4 @@
+import sys
 import os
 import re
 from pathlib import Path
@@ -8,6 +9,8 @@ from canvasapi.assignment import Assignment
 from canvasapi.file import File
 from canvasapi.page import Page
 from canvasapi.util import combine_kwargs
+
+from error_handler import CanvasErrorHandler
 
 import jsonpickle
 from bs4 import BeautifulSoup
@@ -31,39 +34,25 @@ def _write_html(html:str, path: Path):
         out_file.write(html)
 
 class CourseDownloader:
-    course: Course
-    course_dir: Path
-    files_dir: Path
-    # in bytes. -1 = no thresh, 0 = don't download anything, anything higher is regular thresh
-    file_size_thresh: int  
-
-    # Store each dict into a separate json in course's folder
-    # course_dict: dict  #<- hm, maybe this one should be in the top level for the output folder.
-    #( most of below are int(id) to response.json() which could be list or dict)
-    files: dict
-    pages: dict
-    assignments: dict
-    # submissions: dict
-    discussion_topics: dict
-    # announcements: dict
-    modules: dict
-    module_items: dict
-    # videos
-    # media_gallery
-
     def __init__(self, course: Course, course_dir: Path, file_size_thresh: str|int = -1):
         self.course = course
         self._requester = course._requester
-        # make a deep copy, not a reference?
-        # though maybe it doesn't matter since it only gets deleted at the end anyway.
 
-        self.course_dir = course_dir
+        self.course_dir: Path = course_dir
         self.files_dir: Path = course_dir / "files"
         self.files_dir.mkdir(parents=True, exist_ok=True)
 
+        self.files = dict()
+        self.pages = dict()
+        self.assignments = dict()
+        self.discussion_topics = dict()
+        self.modules = dict()
+        self.module_items = dict()
+
+        # in bytes. -1 = no thresh, 0 = don't download anything, anything higher is regular thresh
         # default is no threshold (-1)
-        self.file_size_thresh = parse_size(file_size_thresh)
-        # submissions, attachments, imgs
+        self.file_size_thresh: int = parse_size(file_size_thresh)
+        
 
 
     # main method that calls everything else
@@ -74,19 +63,26 @@ class CourseDownloader:
             self.download_page("home")
         # files
         # only has effect if "files" tab was enabled for course
+        print("files...")
         self.download_files()
         # download pages (?)
         # only has effect if the "pages" tab was enabled
+        print("pages...")
         self.download_pages()
         # assignments
+        print("assignments...")
         self.download_assignments()
         # download announcements, discussion topics
+        print("announcements...")
         self.download_announcements()
+        print("discussions...")
         self.download_discussion_topics()
         # download modules
+        print("modules...")
         self.download_modules()
         # TODO: clean course obj and save resources to jsons?
         _clean_obj(self.course)
+        print("saving jsons...")
         self.save_as_jsons()
 
 
@@ -98,42 +94,64 @@ class CourseDownloader:
     # Does nothing (i.e "files" variable is empty) when File tab of Course is disabled
     def download_files(self):
         files = self.course.get_files(include = ["user", "usage_rights"])
+        count = 0
         for file in files:
             self.download_file(file.id, file)
+            count += 1
+        print(f"{count} files from course.get_files()")
 
 
     # Does nothing (i.e "pages" variable is empty) when Pages tab of Course is disabled
     def download_pages(self):
         pages = self.course.get_pages()
+        count = 0
         for page in pages:
             self.download_page(page.url, page)
+            count += 1
+        print(f"{count} pages from course.get_pages()")
 
 
     def download_assignments(self):
         assignments = self.course.get_assignments(include=["submission","score_statistics","ab_guid"])
+        count = 0
         for assignment in assignments:
             self.download_assignment(assignment.id, assignment)
+            count += 1
+        print(f"{count} assignments from course.get_assignments()")
 
 
     def download_announcements(self):
         announcements = self.course.get_discussion_topics(include = ["sections_user_count","sections","all_dates"], only_announcements=True)
+        count = 0
         for announcement in announcements:
             self.download_discussion_topic(announcement.id, announcement, is_announcement=True)
+            count += 1
+        print(f"{count} announcements from course.get_discussion_topics()")
+
 
 
     def download_discussion_topics(self):
         topics = self.course.get_discussion_topics(include = ["sections_user_count","sections","all_dates"])
+        count = 0
         for topic in topics:
             self.download_discussion_topic(topic.id, topic)
+            count += 1
+        print(f"{count} topics from course.get_discussion_topics()")
 
 
     def download_modules(self):
         modules = self.course.get_modules()
+        count = 0
         for module in modules:
             self.download_module(module.id, module)
+            count += 1
+        print(f"{count} modules from course.get_modules()")
 
 
     def save_as_jsons(self):
+        """
+        Stores resource dicts / objects into separate jsons in course's folder
+        """
         objs = [
             self.course,
             self.files,
@@ -191,13 +209,15 @@ class CourseDownloader:
 
 
         folder_path = self.get_full_folder_path(file.folder_id)
-        source_path = self.files_dir / source / str(source_id)
-        parent_dir = source_path / folder_path if folder_path else source_path
+        # source_path = self.files_dir / source / str(source_id) #TODO: fix folder name stuff
+        # parent_dir = source_path / folder_path if folder_path else source_path
+        parent_dir = self.files_dir / folder_path if folder_path else self.files_dir
+
 
 
         file.is_submission = is_submission #NOTE: new attribute
         if is_submission:
-            parent_dir = parent_dir / assignment_name
+            # parent_dir = parent_dir / assignment_name #TODO: fix folder name stuff
             # multiple submissions to same assignment likely have same filename -
             # append ID to end of stem
             file.og_filename = file.filename #NOTE: new attribute
@@ -243,8 +263,8 @@ class CourseDownloader:
         # Maybe the resulting dicts are combined on the Canvas level call.
         if not id:
             id = url.split("/files/")[-1].split('/')[0]
-        source:str
-        source_id:int
+        source = ""
+        source_id = None
 
         if "/courses/" in url:
             self.download_file(id, is_submission=is_submission, assignment_name=assignment_name)
@@ -267,10 +287,10 @@ class CourseDownloader:
 
 
     def get_file_from_endpoint(self, endpoint, **kwargs) -> File:
-        response = self.__requester.request(
+        response = self._requester.request(
             "GET", endpoint, _kwargs=combine_kwargs(**kwargs)
         )
-        return File(self.__requester, response.json())
+        return File(self._requester, response.json())
 
 
     
@@ -311,11 +331,24 @@ class CourseDownloader:
         self.pages[page_url] = None
 
         if not page:
-            page = self.course.get_page(page_url)
+            try:
+                page = self.course.get_page(page_url)
+            except Exception as e:
+                error_type, message = CanvasErrorHandler.handle_canvas_exception(
+                    e, "get_page()"
+                )
+                print(f"{error_type} when getting page {page_url}")
+                if CanvasErrorHandler.is_fatal_error(error_type):
+                    print(f"FATAL: {message}")
+                    sys.exit(1)
+                else:
+                    CanvasErrorHandler.log_error(error_type, message, verbose=True)
+                return False
+                
 
         page.html_mod = self.process_html(page.body) #NOTE: new attribute
 
-        self.pages[page_url] = _clean_obj[page]
+        self.pages[page_url] = _clean_obj(page)
         return True
 
 
@@ -332,27 +365,30 @@ class CourseDownloader:
         #NOTE: new attribute
         assignment.html_mod = self.process_html(assignment.description)
         #NOTE: new attribute
-        assignment.submission_full = assignment.get_submission(assignment.submission.user_id, include=["submission_history","submission_comments","submission_html_comments",
-                                                                  "rubric_assessment","assignment","visibility","course","user","group",
-                                                                  "read_status","student_entered_score"])
 
-        # grab file attachments
-        # this downloads for all submissions in sub history
-        # you may need to attach id to name since they're likely submitted with the same filename.
-        # perhaps you can also have this as a togglable option, some users may not care for old submissions
-        # TODO
-        for submission in assignment.submission_full.submission_history:
-            for attachment in submission.attachments:
-                # attachments are not guaranteed to be from course
-                self.download_attachment(attachment, assignment_name=assignment.name)
+        if hasattr(assignment, "submission"):
+            assignment.submission_full = assignment.get_submission(assignment.submission["user_id"], include=["submission_history","submission_comments","submission_html_comments",
+                                                                    "rubric_assessment","assignment","visibility","course","user","group",
+                                                                    "read_status","student_entered_score"])
 
-        #NOTE: submission_full also have "submission_html_comments" which contain html content in "comment" attribute
-        for comment_obj in assignment.submission_full.submission_html_comments:
-            comment_obj.html_mod = self.process_html(comment_obj.comment) #NOTE: new attribute
+            # grab file attachments
+            # this downloads for all submissions in sub history
+            # you may need to attach id to name since they're likely submitted with the same filename.
+            # perhaps you can also have this as a togglable option, some users may not care for old submissions
+            # TODO
+            for submission in assignment.submission_full.submission_history:
+                # submission_full is a Submission object, but the submissions in history are probably still dicts
+                for attachment in submission.get("attachments",[]):
+                    # attachments are not guaranteed to be from course
+                    self.download_attachment(attachment, assignment_name=assignment.name)
 
-        _clean_obj(assignment.submission_full.attachments)
-        _clean_obj(assignment.submission_full)
-        self.assignments[id] = _clean_obj[assignment]
+            #NOTE: submission_full also have "submission_html_comments" which contain html content in "comment" attribute
+            for comment_obj in assignment.submission_full.submission_html_comments:
+                comment_obj.html_mod = self.process_html(comment_obj.comment) #NOTE: new attribute
+
+            _clean_obj(assignment.submission_full.attachments)
+            _clean_obj(assignment.submission_full)
+        self.assignments[id] = _clean_obj(assignment)
         return True
 
 
@@ -471,6 +507,7 @@ class CourseDownloader:
         # NoneType values
         if not html_content:
             return ""
+        print("entering process_html *")
 
         # find relevant links in html_content, download resource if necessary and modify link to use local.
         # beautifulsoup / regex / string searches
@@ -486,7 +523,7 @@ class CourseDownloader:
         links = soup.find_all('a')
 
         # canvas resource links
-        domain = self.course._requester.original_url
+        domain = self._requester.original_url
         for link in links:
             if domain in link['href']:
                 endpoint = link['data-api-endpoint']
@@ -499,20 +536,25 @@ class CourseDownloader:
                 # https://developerdocs.instructure.com/services/canvas/basics/file.endpoint_attributes
                 match returntype:
                     case "File":
+                        print("found file")
                         content_id = int(endpoint.split("/files/")[-1])
                         # TODO
                         self.download_file_by_url(endpoint)
                         # self.download_file(content_id) 
                     case "Page":
+                        print("found page")
                         page_url = endpoint.split("/pages/")[-1]
                         self.download_page(page_url)
                     case "Assignment":
+                        print("found assignment")
                         content_id = int(endpoint.split("/assignments/")[-1])
                         self.download_assignment(content_id)
                     case "Discussion":
+                        print("found discussion")
                         content_id = int(endpoint.split('/discussion_topics/')[-1])
                         self.download_discussion_topic(content_id)
                     case "Module":
+                        print("found module")
                         content_id = int(endpoint.split('/modules/')[-1])
                         self.download_module(content_id)
                     case "Folder":
@@ -569,4 +611,5 @@ class CourseDownloader:
         # in objects derived from original soup affect the original soup?)
         #  -> yes, but format is not preserved
         # return soup.prettify()
+        print("exiting process_html *")
         return output_html
