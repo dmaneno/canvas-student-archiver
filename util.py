@@ -1,3 +1,4 @@
+import sys
 import re
 import unicodedata
 import string
@@ -113,3 +114,10 @@ def write_obj_json(obj: object, path: Path):
     json = jsonpickle.encode(obj,unpicklable=False, indent=4)
     with open(path,"w") as out_file:
         out_file.write(json)
+
+def print12(string: str):
+    """
+    Print to both stdout and stderr.
+    """
+    print(string)
+    print(string, file=sys.stderr)

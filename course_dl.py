@@ -16,7 +16,7 @@ import jsonpickle
 from bs4 import BeautifulSoup
 
 from error_handler import CanvasErrorHandler
-from util import parse_size, valid_fname, valid_folder, short_fname
+from util import parse_size, valid_fname, valid_folder, short_fname, print12
 
 # TODO: move to util
 def _clean_obj(obj: object):
@@ -61,22 +61,22 @@ class CourseDownloader:
     def download_resources(self):
         # files
         # only has effect if "files" tab was enabled for course
-        print("files...")
+        print12("files...")
         self.download_files()
         # download pages (?)
         # only has effect if the "pages" tab was enabled
-        print("pages...")
+        print12("pages...")
         self.download_pages()
         # assignments
-        print("assignments...")
+        print12("assignments...")
         self.download_assignments()
         # download announcements, discussion topics
-        print("announcements...")
+        print12("announcements...")
         self.download_announcements()
-        print("discussions...")
+        print12("discussions...")
         self.download_discussion_topics()
         # download modules
-        print("modules...")
+        print12("modules...")
         self.download_modules()
         # syllabus + home page
         if hasattr(self.course, "syllabus_body"):
@@ -92,7 +92,7 @@ class CourseDownloader:
                 self.download_page(page.url, page)
         # clean course obj and save resources to jsons
         _clean_obj(self.course)
-        print("saving jsons...")
+        print12("saving jsons...")
         self.save_as_jsons()
 
 
@@ -120,7 +120,7 @@ class CourseDownloader:
                 CanvasErrorHandler.handle_exception(
                     e, f'iterating on PaginatedList[File]'
                 )
-        print(f"{count} files from course.get_files()")
+        print12(f"{count} files from course.get_files()")
 
 
     # Does nothing (i.e "pages" variable is empty) when Pages tab of Course is disabled
@@ -142,7 +142,7 @@ class CourseDownloader:
                 CanvasErrorHandler.handle_exception(
                     e, f'iterating on PaginatedList[Page]'
                 )
-        print(f"{count} pages from course.get_pages()")
+        print12(f"{count} pages from course.get_pages()")
 
 
     def download_assignments(self):
@@ -164,7 +164,7 @@ class CourseDownloader:
                 CanvasErrorHandler.handle_exception(
                     e, f'iterating on PaginatedList[Assignment]'
                 )
-        print(f"{count} assignments from course.get_assignments()")
+        print12(f"{count} assignments from course.get_assignments()")
 
 
     def download_announcements(self):
@@ -187,7 +187,7 @@ class CourseDownloader:
                 CanvasErrorHandler.handle_exception(
                     e, f'iterating on PaginatedList[DiscussionTopic] (announcements)'
                 )
-        print(f"{count} announcements from course.get_discussion_topics()")
+        print12(f"{count} announcements from course.get_discussion_topics()")
 
 
 
@@ -211,7 +211,7 @@ class CourseDownloader:
                 CanvasErrorHandler.handle_exception(
                     e, f'iterating on PaginatedList[DiscussionTopic]'
                 )
-        print(f"{count} topics from course.get_discussion_topics()")
+        print12(f"{count} topics from course.get_discussion_topics()")
 
 
     def download_modules(self):
@@ -232,7 +232,7 @@ class CourseDownloader:
                 CanvasErrorHandler.handle_exception(
                     e, f'iterating on PaginatedList[Module]'
                 )
-        print(f"{count} modules from course.get_modules()")
+        print12(f"{count} modules from course.get_modules()")
 
 
     def save_as_jsons(self):
@@ -319,7 +319,7 @@ class CourseDownloader:
 
         # size in bytes
         if self.file_size_thresh >= 0 and file.size > self.file_size_thresh:
-            print(f"File size is above set threshold; marked as not downloaded: {file.filename}")
+            print12(f"File size is above set threshold; marked as not downloaded: {file.filename}")
             file.downloaded = False
         else:
             if not file_path.is_file():
@@ -331,10 +331,10 @@ class CourseDownloader:
                     )
                     file.downloaded = False
                 else:
-                    print(f"Downloaded: {file.filename}")
+                    print12(f"Downloaded: {file.filename}")
                     file.downloaded = True
             else:
-                print(f"File Already Exists: {file.filename}")
+                print12(f"File Already Exists: {file.filename}")
                 file.downloaded = True #NOTE: new attribute
 
         # Add file info to dict

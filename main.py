@@ -8,7 +8,7 @@ import jsonpickle
 
 from course_dl import CourseDownloader
 from error_handler import  CanvasErrorHandler
-from util import clean_obj, write_obj_json
+from util import clean_obj, write_obj_json, print12
 
 API_URL = ""
 API_KEY = ""
@@ -54,8 +54,8 @@ if __name__ == "__main__":
     missing = [k for k in required if not creds.get(k)]
 
     if missing:
-        print(f"Error: {args.config} is missing required field(s): {', '.join(missing)}.")
-        print("Please create the YAML file with the following structure:\n"
+        print12(f"Error: {args.config} is missing required field(s): {', '.join(missing)}.")
+        print12("Please create the YAML file with the following structure:\n"
               "API_URL: https://<your>.instructure.com\n"
               "API_KEY: <your key>\n"
               "USER_ID: 123456\n")
@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
     # Connect to Canvas =========================================================
 
-    print("\nConnecting to Canvas…\n") #--------------------------
+    print12("\nConnecting to Canvas…\n") #--------------------------
 
     # Initialize a new Canvas object
     canvas = Canvas(API_URL, cookies=COOKIES) # <<<<<<<<<<<<<<<<< NOTE: canvasapi does not support cookies by default
@@ -87,15 +87,15 @@ if __name__ == "__main__":
     # Test the connection and API key
     try:
         user = canvas.get_current_user()
-        print(f"Successfully authenticated as: {user.name} (ID: {user.id})") #--------------------------
+        print12(f"Successfully authenticated as: {user.name} (ID: {user.id})") #--------------------------
         if user.id != USER_ID:
-            print(f"Warning: Authenticated user ID ({user.id}) does not match configured USER_ID ({USER_ID})")
+            print12(f"Warning: Authenticated user ID ({user.id}) does not match configured USER_ID ({USER_ID})")
     except Exception as e:
         CanvasErrorHandler.handle_exception(e, "Canvas authentication")
 
     # Archive Process =========================================================
  
-    print(f"Creating output directory: {DL_LOCATION}\n")
+    print12(f"Creating output directory: {DL_LOCATION}\n")
     DL_LOCATION.mkdir(parents=True, exist_ok=True)
     
  
@@ -121,10 +121,10 @@ if __name__ == "__main__":
             course_dir: Path = DL_LOCATION / course.term["name"] / course.course_code
 
             course_downloader = CourseDownloader(course, course_dir, FILE_SIZE_THRESH)
-            print(f"---Downloading resources for {course.course_code} (course count: {course_count})---")
+            print12(f"---Downloading resources for {course.course_code} (course count: {course_count})---")
             course_downloader.download_resources()
             course_dict[course.id] = clean_obj(course)
 
     write_obj_json(course_dict)
 
-    print(f'** Finished downloading {len(course_dict)} courses **')
+    print12(f'** Finished downloading {len(course_dict)} courses **')
