@@ -438,7 +438,8 @@ class CourseDownloader:
                 )
                 return False
 
-        page.html_mod = self.process_html(page.body) #NOTE: new attribute
+        if hasattr(page, "body"):
+            page.html_mod = self.process_html(page.body) #NOTE: new attribute
 
         self.pages[page_url] = _clean_obj(page)
         return True
@@ -487,7 +488,7 @@ class CourseDownloader:
 
                 #NOTE: submission_full also have "submission_html_comments" which contain html content in "comment" attribute
                 for comment_obj in assignment.submission_full.submission_html_comments:
-                    comment_obj.html_mod = self.process_html(comment_obj.comment) #NOTE: new attribute
+                    comment_obj["comment_mod"] = self.process_html(comment_obj.get("comment", "")) #NOTE: new attribute
 
                 _clean_obj(assignment.submission_full.attachments)
                 _clean_obj(assignment.submission_full)
@@ -662,7 +663,9 @@ class CourseDownloader:
         # canvas resource links
         domain = self._requester.original_url
         for link in links:
-            if domain in link['href']:
+            if 'href' not in link:
+                continue
+            if domain in link.get('href', ""):
                 endpoint = link.get('data-api-endpoint', None)
                 returntype = link.get('data-api-returntype', None)
 
@@ -739,7 +742,7 @@ class CourseDownloader:
         # ------ TODO: other types of links and embedded content ------
 
         # embedded images / links
-        imgs = soup.find_all('img')
+        # imgs = soup.find_all('img')
 
         # kaltura / video links
 
