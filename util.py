@@ -77,8 +77,8 @@ def valid_folder(input_str: str|None) -> str|None:
     # Remove trailing periods
     input_str = input_str.rstrip(".")
 
-    # Replace path separators with OS default
-    input_str=input_str.replace("/",os.sep)
+    # Replace path separators with OS default <- not necessary since using pathlib
+    # input_str=input_str.replace("/",os.sep)
 
     return input_str
 
