@@ -81,7 +81,7 @@ class CourseDownloader:
             self.course.syllabus_body_mod = self.process_html(self.course.syllabus_body)
         if self.course.default_view == "wiki":
             self.download_page("home")
-        # TODO: clean course obj and save resources to jsons?
+        # clean course obj and save resources to jsons
         _clean_obj(self.course)
         print("saving jsons...")
         self.save_as_jsons()
@@ -270,7 +270,7 @@ class CourseDownloader:
     def download_file(self, id: int, file: File|None = None, source_name: str|None = None,
                       topic_name: str|None = None, assignment_name: str|None = None) -> bool:
         # Downloads file if it hasn't already been downloaded
-        if id in self.files: #TODO - separate dict for each file source?
+        if id in self.files:
             return False
 
         if not file:
@@ -477,11 +477,7 @@ class CourseDownloader:
                     '"read_status","student_entered_score"])'
                 )
             else:
-                # grab file attachments
-                # this downloads for all submissions in sub history
-                # you may need to attach id to name since they're likely submitted with the same filename.
-                # perhaps you can also have this as a togglable option, some users may not care for old submissions
-                # TODO
+                # NOTE: perhaps you can also have this as a toggleable option, some users may not care for old submissions
                 for submission in assignment.submission_full.submission_history:
                     # submission_full is a Submission object, but the submissions in history are probably still dicts
                     for attachment in submission.get("attachments",[]):
@@ -612,7 +608,7 @@ class CourseDownloader:
 
         match item.type:
             case "File":
-                self.download_file(item.content_id) #TODO - likely from course, but verify
+                self.download_file(item.content_id) #NOTE - likely from course, but maybe verify to be sure
             case "Page":
                 self.download_page(item.page_url)
             case "Assignment":
@@ -643,7 +639,6 @@ class CourseDownloader:
     # ------ KEY HELPER METHOD
 
 
-    #TODO
     def process_html(self, html_content: str|None) -> str:
         # NoneType values
         if not html_content:
@@ -675,7 +670,7 @@ class CourseDownloader:
                 # f"courses/{self.course.id}/..." from old repo may not be necessary
 
                 # https://developerdocs.instructure.com/services/canvas/basics/file.endpoint_attributes
-                # TODO: each returntype can also show up in a list like "[Module]" or "[File]".
+                # NOTE: each returntype can also show up in a list like "[Module]" or "[File]".
                 # currently not accounted for... most of these instances are to link to pages like
                 # the modules or topics page, which will eventually be taken care of in download_modules(),
                 # download_discussion_topics(), etc.
@@ -683,7 +678,6 @@ class CourseDownloader:
                     case "File":
                         print("found file")
                         # content_id = int(endpoint.split("/files/")[-1])
-                        # TODO
                         self.download_file_by_url(endpoint)
                         # self.download_file(content_id) 
                     case "Page":
@@ -720,7 +714,7 @@ class CourseDownloader:
                     case _:
                         pass
 
-                # TODO: modifying and returning the html using the soup structure doesn't preserve
+                # NOTE: modifying and returning the html using the soup structure doesn't preserve
                 # the original formatting of the input html.
                 # Perhaps use soup just for finding necessary information, and then
                 # modify and return using basic string / RE searching on a copy of the original html string
