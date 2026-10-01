@@ -90,14 +90,7 @@ if __name__ == "__main__":
         if user.id != USER_ID:
             print(f"Warning: Authenticated user ID ({user.id}) does not match configured USER_ID ({USER_ID})")
     except Exception as e:
-        error_type, message = CanvasErrorHandler.handle_canvas_exception(
-            e, "Canvas authentication"
-        )
-        if CanvasErrorHandler.is_fatal_error(error_type):
-            print(f"FATAL: {message}")
-            sys.exit(1)
-        else:
-            CanvasErrorHandler.log_error(error_type, message, verbose=args.verbose)
+        CanvasErrorHandler.handle_exception(e, "Canvas authentication")
 
     # Archive Process =========================================================
  

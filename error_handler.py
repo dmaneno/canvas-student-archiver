@@ -34,22 +34,22 @@ class CanvasErrorHandler:
         Returns (error_type, message)
         """
         if isinstance(e, InvalidAccessToken):
-            return "authentication", f"Invalid Canvas API token during {operation_description}. Please check your credentials.yaml file: {str(e)}"
+            return "authentication", f"Invalid Canvas API token during {operation_description}. Please check your credentials.yaml file."
         
         elif isinstance(e, Unauthorized):
             # Check if this is a known student limitation
             if "submissions" in operation_description.lower():
-                return "student_limitation", f"Not authorized to download every student's assignment submission ({operation_description}). This is normal for student accounts: {str(e)}"
+                return "student_limitation", f"Not authorized to download every student's assignment submission ({operation_description}). This is normal for student accounts."
             elif "file" in operation_description.lower():
-                return "student_limitation", f"Not authorized to download some course files ({operation_description}). This is normal for student accounts: {str(e)}"
+                return "student_limitation", f"Not authorized to download some course files ({operation_description}). This is normal for student accounts."
             else:
-                return "authorization", f"Not authorized to perform {operation_description}. Check your Canvas permissions: {str(e)}"
+                return "authorization", f"Not authorized to perform {operation_description}. Check your Canvas permissions."
         
         elif isinstance(e, Forbidden):
-            return "student_limitation", f"Access forbidden for {operation_description}. This may be normal for student accounts: {str(e)}"
+            return "student_limitation", f"Access forbidden for {operation_description}. This may be normal for student accounts."
         
         elif isinstance(e, ResourceDoesNotExist):
-            return "not_found", f"Resource not found for {operation_description}. It may have been deleted or moved: {str(e)}"
+            return "not_found", f"Resource not found for {operation_description}. It may have been deleted or moved."
         
         elif isinstance(e, CanvasException):
             return "canvas_error", f"Canvas API error during {operation_description}: {str(e)}"
