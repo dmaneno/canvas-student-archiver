@@ -34,7 +34,6 @@ def parse_size(size: str|int) -> int:
     return b_size
 
 # based on code from https://github.com/davekats/canvas-student-data-export/blob/master/export.py
-
 def valid_fname(input_str: str|None) -> str|None:
     if not input_str:
         return None
@@ -58,6 +57,50 @@ def valid_fname(input_str: str|None) -> str|None:
     input_str = input_str.rstrip(".")
 
     return input_str
+
+# based on code from https://github.com/davekats/canvas-student-data-export/blob/master/export.py
+def valid_folder(input_str: str|None) -> str|None:
+    # Normalize Unicode and whitespace
+    input_str = unicodedata.normalize('NFKC', input_str)
+    input_str = input_str.replace("\u00A0", " ") # NBSP to space
+    input_str = re.sub(r"\s+", " ", input_str)
+
+    # Remove invalid characters
+    valid_chars = "-_.()/ %s%s" % (string.ascii_letters, string.digits)
+    input_str = input_str.replace("+"," ") # Canvas default for spaces
+    input_str = input_str.replace(":","-")
+    input_str = "".join(c for c in input_str if c in valid_chars)
+
+    # Remove leading and trailing whitespace, separators
+    input_str = input_str.lstrip().rstrip().strip("/").strip("\\")
+
+    # Remove trailing periods
+    input_str = input_str.rstrip(".")
+
+    # Replace path separators with OS default
+    input_str=input_str.replace("/",os.sep)
+
+    return input_str
+
+# based on code from https://github.com/davekats/canvas-student-data-export/blob/master/export.py
+# Max PATH length is 260 characters on Windows. 70 is just an estimate for a reasonable max folder name to prevent the chance of reaching the limit
+# Applies to modules, assignments, announcements, and discussions
+# If a folder exceeds this limit, a "-" will be added to the end to indicate it was shortened ("..." not valid)
+MAX_FNAME_SIZE = 70
+def short_fname(string: str|None) -> str:
+    """
+    Shortens filename, if necessary.
+    """
+    if not string:
+        return string
+    shorten_by = len(string) - MAX_FNAME_SIZE
+    if shorten_by <= 0:
+        return string
+    # Shorten string by specified value + 1 for "-" to indicate incomplete file name (trailing periods not allowed)
+    string = string[:len(string)-(shorten_by + 1)]
+    string = string.rstrip().rstrip(".").rstrip("-")
+    string += "-"
+    return string
 
 def clean_obj(obj: object):
     # python pass-by-object-reference, but return anyway so it can be placed within

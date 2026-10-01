@@ -15,7 +15,7 @@ from error_handler import CanvasErrorHandler
 import jsonpickle
 from bs4 import BeautifulSoup
 
-from util import parse_size, valid_fname
+from util import parse_size, valid_fname, valid_folder, short_fname
 
 # TODO: move to util
 def _clean_obj(obj: object):
@@ -81,7 +81,14 @@ class CourseDownloader:
         if hasattr(self.course, "syllabus_body"):
             self.course.syllabus_body_mod = self.process_html(self.course.syllabus_body)
         if self.course.default_view == "wiki":
-            self.download_page("home")
+            try:
+                page = self.course.show_front_page() # front page is marked with front_page bool attribute
+            except Exception as e:
+                CanvasErrorHandler.handle_exception(
+                    e, f'self.course.show_front_page()'
+                )
+            else:
+                self.download_page(page.url, page)
         # clean course obj and save resources to jsons
         _clean_obj(self.course)
         print("saving jsons...")
@@ -284,28 +291,29 @@ class CourseDownloader:
                 return False
         
         parent_dir = self.files_dir
+        file.og_filename = file.filename #NOTE: new attribute
 
         file.tag = "course" #NOTE: new attribute
         if assignment_name:
             file.tag = "submission"
-            parent_dir = parent_dir / "submissions" / assignment_name
+            parent_dir = parent_dir / "submissions" / short_fname(valid_fname(assignment_name))
             # multiple submissions to same assignment likely have same filename -
             # append ID to end of stem
-            file.og_filename = file.filename #NOTE: new attribute
             og = Path(file.og_filename)
             file.filename = f"{og.stem}_{id}{og.suffix}"
         elif topic_name:
             file.tag = "topic_attachment"
-            parent_dir = parent_dir / "topic_attachments" / topic_name
+            parent_dir = parent_dir / "topic_attachments" / short_fname(valid_fname(topic_name))
         elif source_name:
             file.tag = "other_source"
-            parent_dir = parent_dir / "other_sources" / source_name
+            parent_dir = parent_dir / "other_sources" / short_fname(valid_fname(source_name))
 
         folder_path = self.get_full_folder_path(file.folder_id)
         if folder_path:
             parent_dir = parent_dir / folder_path
             
         parent_dir.mkdir(parents=True, exist_ok=True)
+        file.filename = short_fname(valid_fname(file.filename))
         file_path: Path = parent_dir / file.filename
 
         # size in bytes
@@ -380,7 +388,7 @@ class CourseDownloader:
             )
             return False
         
-        return self.download_file(file.id, file, source_name=valid_fname(source))
+        return self.download_file(file.id, file, source_name=source)
 
 
     def get_file_from_endpoint(self, endpoint, **kwargs) -> File:
@@ -404,8 +412,6 @@ class CourseDownloader:
         if "id" not in attachment_json:
             attachment_json["id"] = attachment_json["url"].split("/files/")[-1].split('/')[0]
         file = File(self._requester, attachment_json)
-        topic_name = valid_fname(topic_name)
-        assignment_name = valid_fname(assignment_name)
         self.download_file(file.id, file, topic_name=topic_name, assignment_name=assignment_name)
     
 
@@ -419,7 +425,7 @@ class CourseDownloader:
             CanvasErrorHandler.handle_exception(e, f"self.course.get_folder({folder_id})")
             # folder is likely inaccessible to student (unauthorized) - default to None
             return None
-        return Path(folder.full_name)
+        return Path(valid_folder(folder.full_name))
 
 
     def download_page(self, page_url: str, page: Page|None = None) -> bool:
