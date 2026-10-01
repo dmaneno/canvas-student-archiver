@@ -1,9 +1,30 @@
-# code from https://github.com/davekats/canvas-student-data-export/blob/master/export.py
+# code based on https://github.com/davekats/canvas-student-data-export/blob/master/export.py
 
 from canvasapi.exceptions import ResourceDoesNotExist, Unauthorized, Forbidden, InvalidAccessToken, CanvasException
+import sys
+
+# NOTE: You can see how the exceptions are raised in canvasapi.requester
 
 # Canvas API Error Handling Utility
 class CanvasErrorHandler:
+
+    @staticmethod
+    def handle_exception(e, operation_description="operation"):
+        """
+        Main handler function called by other modules
+        """
+        print(f"## Exception <{type(e).__name__}>: {str(e)}")
+        
+        error_type, message = CanvasErrorHandler.handle_canvas_exception(
+            e, operation_description
+        )
+        if CanvasErrorHandler.is_fatal_error(error_type):
+            print(f"FATAL: {message}")
+            sys.exit(1)
+        else:
+            CanvasErrorHandler.log_error(error_type, message, verbose=True)
+
+
     @staticmethod
     def handle_canvas_exception(e, operation_description="operation"):
         """
@@ -11,22 +32,22 @@ class CanvasErrorHandler:
         Returns (error_type, message)
         """
         if isinstance(e, InvalidAccessToken):
-            return "authentication", f"Invalid Canvas API token. Please check your credentials.yaml file."
+            return "authentication", f"Invalid Canvas API token during {operation_description}. Please check your credentials.yaml file: {str(e)}"
         
         elif isinstance(e, Unauthorized):
             # Check if this is a known student limitation
             if "submissions" in operation_description.lower():
-                return "student_limitation", f"Not authorized to download every student's assignment submission. This is normal for student accounts."
+                return "student_limitation", f"Not authorized to download every student's assignment submission ({operation_description}). This is normal for student accounts: {str(e)}"
             elif "file" in operation_description.lower():
-                return "student_limitation", f"Not authorized to download some course files. This is normal for student accounts."
+                return "student_limitation", f"Not authorized to download some course files ({operation_description}). This is normal for student accounts: {str(e)}"
             else:
-                return "authorization", f"Not authorized to perform {operation_description}. Check your Canvas permissions."
+                return "authorization", f"Not authorized to perform {operation_description}. Check your Canvas permissions: {str(e)}"
         
         elif isinstance(e, Forbidden):
-            return "student_limitation", f"Access forbidden for {operation_description}. This may be normal for student accounts."
+            return "student_limitation", f"Access forbidden for {operation_description}. This may be normal for student accounts: {str(e)}"
         
         elif isinstance(e, ResourceDoesNotExist):
-            return "not_found", f"Resource not found for {operation_description}. It may have been deleted or moved."
+            return "not_found", f"Resource not found for {operation_description}. It may have been deleted or moved: {str(e)}"
         
         elif isinstance(e, CanvasException):
             return "canvas_error", f"Canvas API error during {operation_description}: {str(e)}"

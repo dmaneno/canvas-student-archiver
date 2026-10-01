@@ -4,6 +4,10 @@ from pathlib import Path
 from course_dl import CourseDownloader
 from canvasapi.course import Course
 from canvasapi.requester import Requester
+from canvasapi.exceptions import ResourceDoesNotExist, Unauthorized, Forbidden, InvalidAccessToken, CanvasException
+
+# NOTE: view output with pytest -rP (passed), pytest -rX (failed), 
+# or pytest -rA (all) after running tests
 
 def test_course_downloader_init_requester():
     course = Course(Requester(base_url="canvas.mock.edu", cookies={}), attributes={})
@@ -21,6 +25,19 @@ def course_downloader(mocker):
     # 2 - perhaps name the directory with a timestamp to ensure name doesn't
     # collide with an existing directory that happens to have the same name
     return CourseDownloader(course, Path("./test_course"))
+
+def test_download_page_nonexistent(mocker, course_downloader):
+    # setup
+    mock_api = mocker.patch("course_dl.Course.get_page")
+    # mock_api = mocker.patch.object("course_downloader", "")
+    mock_api.side_effect = ResourceDoesNotExist("Not Found")
+
+    # run
+    flag = course_downloader.download_page("nonexistent-page")
+
+    # assertions
+    mock_api.assert_called_once_with("nonexistent-page")
+    assert flag == False
 
 
 @pytest.fixture
@@ -83,7 +100,7 @@ def html_content_all_types():
 def test_process_html_canvas_links(mocker, course_downloader, html_content_all_types):
     # Mock atomic resource download methods
     # file, page, assignment, discussion, module
-    mock_file_dl = mocker.patch("course_dl.CourseDownloader.download_file")
+    mock_file_dl = mocker.patch("course_dl.CourseDownloader.download_file_by_url")
     mock_page_dl = mocker.patch("course_dl.CourseDownloader.download_page")
     mock_assignment_dl = mocker.patch("course_dl.CourseDownloader.download_assignment")
     mock_topic_dl = mocker.patch("course_dl.CourseDownloader.download_discussion_topic")
@@ -94,7 +111,8 @@ def test_process_html_canvas_links(mocker, course_downloader, html_content_all_t
 
     # Assertions
     # - all things were called
-    mock_file_dl.assert_called_once_with(24680)
+    # mock_file_dl.assert_called_once_with(24680) # NOTE: process_html now calls download_file_by_url()
+    mock_file_dl.assert_called_once_with("https://canvas.mock.edu/api/v1/courses/12345/files/24680")
     mock_page_dl.assert_called_once_with("week-1")
     mock_assignment_dl.assert_called_once_with(77177)
     mock_topic_dl.assert_called_once_with(22222)
@@ -114,7 +132,8 @@ def test_process_html_canvas_links(mocker, course_downloader, html_content_all_t
     
     # NOTE: the specific formatting of the output (i.e. order of attributes) is not checked
     # in this test, though it is preferred to preserve the original formatting if possible.
-    print(output) # view output with pytest -rP, pytest -rX, or pytest -rA after running tests
+    print(output)
+
 
 
 

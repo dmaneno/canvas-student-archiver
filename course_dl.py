@@ -334,17 +334,8 @@ class CourseDownloader:
             try:
                 page = self.course.get_page(page_url)
             except Exception as e:
-                error_type, message = CanvasErrorHandler.handle_canvas_exception(
-                    e, "get_page()"
-                )
-                print(f"{error_type} when getting page {page_url}")
-                if CanvasErrorHandler.is_fatal_error(error_type):
-                    print(f"FATAL: {message}")
-                    sys.exit(1)
-                else:
-                    CanvasErrorHandler.log_error(error_type, message, verbose=True)
+                CanvasErrorHandler.handle_exception(e, f"self.course.get_page({page_url})")
                 return False
-                
 
         page.html_mod = self.process_html(page.body) #NOTE: new attribute
 
@@ -537,7 +528,7 @@ class CourseDownloader:
                 match returntype:
                     case "File":
                         print("found file")
-                        content_id = int(endpoint.split("/files/")[-1])
+                        # content_id = int(endpoint.split("/files/")[-1])
                         # TODO
                         self.download_file_by_url(endpoint)
                         # self.download_file(content_id) 
