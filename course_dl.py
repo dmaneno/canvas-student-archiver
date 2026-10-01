@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 
 from util import parse_size, valid_fname
 
+# TODO: move to util
 def _clean_obj(obj: object):
     # python pass-by-object-reference, but return anyway so it can be placed within
     # append statement
@@ -29,9 +30,9 @@ def _write_obj_json(obj: object, path: Path):
     with open(path,"w") as out_file:
         out_file.write(json)
 
-def _write_html(html:str, path: Path):
-    with open(path,"w") as out_file:
-        out_file.write(html)
+# def _write_html(html:str, path: Path):
+#     with open(path,"w") as out_file:
+#         out_file.write(html)
 
 class CourseDownloader:
     def __init__(self, course: Course, course_dir: Path, file_size_thresh: str|int = -1):
@@ -309,7 +310,7 @@ class CourseDownloader:
 
         # size in bytes
         if self.file_size_thresh >= 0 and file.size > self.file_size_thresh:
-            print(f"File size is above set threshold; marked as not downloaded")
+            print(f"File size is above set threshold; marked as not downloaded: {file.filename}")
             file.downloaded = False
         else:
             if not file_path.is_file():
@@ -643,7 +644,7 @@ class CourseDownloader:
         # NoneType values
         if not html_content:
             return ""
-        print("entering process_html *")
+        # print("entering process_html *")
 
         # find relevant links in html_content, download resource if necessary and modify link to use local.
         # beautifulsoup / regex / string searches
@@ -676,24 +677,24 @@ class CourseDownloader:
                 # download_discussion_topics(), etc.
                 match returntype:
                     case "File":
-                        print("found file")
+                        # print("found file")
                         # content_id = int(endpoint.split("/files/")[-1])
                         self.download_file_by_url(endpoint)
                         # self.download_file(content_id) 
                     case "Page":
-                        print("found page")
+                        # print("found page")
                         page_url = endpoint.split("/pages/")[-1]
                         self.download_page(page_url)
                     case "Assignment":
-                        print("found assignment")
+                        # print("found assignment")
                         content_id = int(endpoint.split("/assignments/")[-1])
                         self.download_assignment(content_id)
                     case "Discussion":
-                        print("found discussion")
+                        # print("found discussion")
                         content_id = int(endpoint.split('/discussion_topics/')[-1])
                         self.download_discussion_topic(content_id)
                     case "Module":
-                        print("found module")
+                        # print("found module")
                         content_id = int(endpoint.split('/modules/')[-1])
                         self.download_module(content_id)
                     case "Folder":
@@ -750,5 +751,5 @@ class CourseDownloader:
         # in objects derived from original soup affect the original soup?)
         #  -> yes, but format is not preserved
         # return soup.prettify()
-        print("exiting process_html *")
+        # print("exiting process_html *")
         return output_html

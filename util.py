@@ -1,6 +1,8 @@
 import re
 import unicodedata
 import string
+import jsonpickle
+from pathlib import Path
 
 # based on - https://stackoverflow.com/a/60708339
 units = {"B": 1, "KB": 2**10, "MB": 2**20, "GB": 2**30, "TB": 2**40}
@@ -56,3 +58,15 @@ def valid_fname(input_str: str|None) -> str|None:
     input_str = input_str.rstrip(".")
 
     return input_str
+
+def clean_obj(obj: object):
+    # python pass-by-object-reference, but return anyway so it can be placed within
+    # append statement
+    if hasattr(obj, "_requester"):
+        delattr(obj, "_requester")
+    return obj
+
+def write_obj_json(obj: object, path: Path):
+    json = jsonpickle.encode(obj,unpicklable=False, indent=4)
+    with open(path,"w") as out_file:
+        out_file.write(json)

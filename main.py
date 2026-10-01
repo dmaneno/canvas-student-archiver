@@ -8,6 +8,7 @@ import jsonpickle
 
 from course_dl import CourseDownloader
 from error_handler import  CanvasErrorHandler
+from util import clean_obj, write_obj_json
 
 API_URL = ""
 API_KEY = ""
@@ -107,6 +108,8 @@ if __name__ == "__main__":
     select = set(COURSE_SELECTION)
     skip = set(COURSES_TO_SKIP)
 
+    course_dict = {}
+
     for courses in courses_list:
         for course in courses:
             if course.id in skip or not hasattr(course, "name") or not hasattr(course, "term"):
@@ -122,3 +125,8 @@ if __name__ == "__main__":
             course_downloader = CourseDownloader(course, course_dir, FILE_SIZE_THRESH)
             print(f"---Downloading resources for {course.course_code}---")
             course_downloader.download_resources()
+            course_dict[course.id] = clean_obj(course)
+
+    write_obj_json(course_dict)
+
+    print(f'** Finished downloading {len(course_dict)} courses **')
