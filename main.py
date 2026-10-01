@@ -38,11 +38,11 @@ if __name__ == "__main__":
 
     # Setup / Arg Parsing =========================================================
 
-    parser = argparse.ArgumentParser(description="Archives plain html content and associated files from Canvas courses.")
+    parser = argparse.ArgumentParser(description="Archives data and associated files from Canvas courses.")
     parser.add_argument("-c", "--config", default="credentials.yaml", help="Path to YAML credentials file (default: credentials.yaml)")
     parser.add_argument("-o", "--output", default="./output", help="Directory to store exported data (default: ./output)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output for debugging.")
-    # parser.add_argument("--version", action="version", version="Canvas Student Data Export Tool 1.0")
+    # parser.add_argument("--version", action="version", version="")
 
     args = parser.parse_args()
 
@@ -96,7 +96,6 @@ if __name__ == "__main__":
     # Archive Process =========================================================
  
     print(f"Creating output directory: {DL_LOCATION}\n")
-    # os.makedirs(DL_LOCATION, exist_ok=True)
     DL_LOCATION.mkdir(parents=True, exist_ok=True)
     
  
@@ -109,6 +108,7 @@ if __name__ == "__main__":
     skip = set(COURSES_TO_SKIP)
 
     course_dict = {}
+    course_count = 0
 
     for courses in courses_list:
         for course in courses:
@@ -117,13 +117,11 @@ if __name__ == "__main__":
             if len(select) > 0 and course.id not in select:
                 continue
 
-            # print(course.term)
-
-            # course_dir = os.path.join(DL_LOCATION, course.term["name"], course.course_code)
+            course_count += 1
             course_dir: Path = DL_LOCATION / course.term["name"] / course.course_code
 
             course_downloader = CourseDownloader(course, course_dir, FILE_SIZE_THRESH)
-            print(f"---Downloading resources for {course.course_code}---")
+            print(f"---Downloading resources for {course.course_code} (course count: {course_count})---")
             course_downloader.download_resources()
             course_dict[course.id] = clean_obj(course)
 
