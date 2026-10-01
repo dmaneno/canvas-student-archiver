@@ -663,8 +663,8 @@ class CourseDownloader:
         domain = self._requester.original_url
         for link in links:
             if domain in link['href']:
-                endpoint = link['data-api-endpoint']
-                returntype = link['data-api-returntype']
+                endpoint = link.get('data-api-endpoint', None)
+                returntype = link.get('data-api-returntype', None)
 
                 # NOTE: need to account for both course files and non-course files
                 # (see comment in discussion methods)
