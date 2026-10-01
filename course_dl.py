@@ -542,14 +542,11 @@ class CourseDownloader:
             return CanvasErrorHandler.handle_exception(
                 e, f'self.course.get_full_discussion_topic({topic.id})'
             )
-
-        for entry in full_topic["view"]:
-            if "message" in entry:
-                entry["message_mod"] = self.process_html(entry["message"]) #NOTE: new attribute
-            if "replies" in entry:
-                for reply in entry["replies"]:
-                    if "message" in reply:
-                        reply["message_mod"] = self.process_html(reply["message"]) #NOTE: new attribute
+        
+        for entry in full_topic.get("view",[]):
+            entry["message_mod"] = self.process_html(entry.get("message",""))
+            for reply in entry.get("replies",[]):
+                reply["message_mod"] = self.process_html(reply.get("message","")) #NOTE: new attribute
             if "attachment" in entry:
                 self.download_attachment(entry["attachment"],source_name=topic.title)
                 # -> NOTE: some of these are not associated with the course itself.
