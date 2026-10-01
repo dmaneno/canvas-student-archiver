@@ -2,6 +2,8 @@ import sys
 import os
 import re
 from pathlib import Path
+from urllib.parse import unquote
+
 from canvasapi.course import Course
 from canvasapi.module import Module, ModuleItem
 from canvasapi.discussion_topic import DiscussionTopic
@@ -10,11 +12,10 @@ from canvasapi.file import File
 from canvasapi.page import Page
 from canvasapi.util import combine_kwargs
 
-from error_handler import CanvasErrorHandler
-
 import jsonpickle
 from bs4 import BeautifulSoup
 
+from error_handler import CanvasErrorHandler
 from util import parse_size, valid_fname, valid_folder, short_fname
 
 # TODO: move to util
@@ -690,7 +691,11 @@ class CourseDownloader:
                         # self.download_file(content_id) 
                     case "Page":
                         # print("found page")
-                        page_url = endpoint.split("/pages/")[-1]
+                        # NOTE: possible issue on Canvas's part; while href is fine,
+                        # endpoint is url-encoded twice, so the API can't actually recognize
+                        # from endpoint if url happens to have special characters.
+                        # Need to url-decode once
+                        page_url = unquote(endpoint.split("/pages/")[-1])
                         self.download_page(page_url)
                     case "Assignment":
                         # print("found assignment")
