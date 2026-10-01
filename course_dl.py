@@ -58,7 +58,8 @@ class CourseDownloader:
     # main method that calls everything else
     def download_resources(self):
         # syllabus + home page
-        self.course.syllabus_body_mod = self.process_html(self.course.syllabus_body)
+        if hasattr(self.course, "syllabus_body"):
+            self.course.syllabus_body_mod = self.process_html(self.course.syllabus_body)
         if self.course.default_view == "wiki":
             self.download_page("home")
         # files
@@ -93,58 +94,105 @@ class CourseDownloader:
 
     # Does nothing (i.e "files" variable is empty) when File tab of Course is disabled
     def download_files(self):
-        files = self.course.get_files(include = ["user", "usage_rights"])
         count = 0
-        for file in files:
-            self.download_file(file.id, file)
-            count += 1
+        try:
+            files = self.course.get_files(include = ["user", "usage_rights"])
+        except Exception as e:
+            # not storing exception message
+            CanvasErrorHandler.handle_exception(
+                e, f'self.course.get_files(include = ["user", "usage_rights"])'
+            )
+        else:
+            for file in files:
+                self.download_file(file.id, file)
+                count += 1
         print(f"{count} files from course.get_files()")
 
 
     # Does nothing (i.e "pages" variable is empty) when Pages tab of Course is disabled
     def download_pages(self):
-        pages = self.course.get_pages()
         count = 0
-        for page in pages:
-            self.download_page(page.url, page)
-            count += 1
+        try:
+            pages = self.course.get_pages()
+        except Exception as e:
+            # not storing exception message
+            CanvasErrorHandler.handle_exception(
+                e, f'self.course.get_pages()'
+            )
+        else:
+            for page in pages:
+                self.download_page(page.url, page)
+                count += 1
         print(f"{count} pages from course.get_pages()")
 
 
     def download_assignments(self):
-        assignments = self.course.get_assignments(include=["submission","score_statistics","ab_guid"])
         count = 0
-        for assignment in assignments:
-            self.download_assignment(assignment.id, assignment)
-            count += 1
+        try:
+           assignments = self.course.get_assignments(
+               include=["submission","score_statistics","ab_guid"])
+        except Exception as e:
+            # not storing exception message
+            CanvasErrorHandler.handle_exception(
+                e, f'self.course.get_assignments(include=["submission","score_statistics","ab_guid"])'
+            )
+        else:
+            for assignment in assignments:
+                self.download_assignment(assignment.id, assignment)
+                count += 1
         print(f"{count} assignments from course.get_assignments()")
 
 
     def download_announcements(self):
-        announcements = self.course.get_discussion_topics(include = ["sections_user_count","sections","all_dates"], only_announcements=True)
         count = 0
-        for announcement in announcements:
-            self.download_discussion_topic(announcement.id, announcement, is_announcement=True)
-            count += 1
+        try:
+            announcements = self.course.get_discussion_topics(
+                include = ["sections_user_count","sections","all_dates"], only_announcements=True)
+        except Exception as e:
+        # not storing exception message
+            CanvasErrorHandler.handle_exception(
+                e, f'self.course.get_discussion_topics('
+                'include = ["sections_user_count","sections","all_dates"], only_announcements=True)'
+            )
+        else:
+            for announcement in announcements:
+                self.download_discussion_topic(announcement.id, announcement, is_announcement=True)
+                count += 1
         print(f"{count} announcements from course.get_discussion_topics()")
 
 
 
     def download_discussion_topics(self):
-        topics = self.course.get_discussion_topics(include = ["sections_user_count","sections","all_dates"])
         count = 0
-        for topic in topics:
-            self.download_discussion_topic(topic.id, topic)
-            count += 1
+        try:
+            topics = self.course.get_discussion_topics(
+                include = ["sections_user_count","sections","all_dates"])
+        except Exception as e:
+            # not storing exception message
+            CanvasErrorHandler.handle_exception(
+                e, f'self.course.get_discussion_topics('
+                'include = ["sections_user_count","sections","all_dates"])'
+            )
+        else:
+            for topic in topics:
+                self.download_discussion_topic(topic.id, topic)
+                count += 1
         print(f"{count} topics from course.get_discussion_topics()")
 
 
     def download_modules(self):
-        modules = self.course.get_modules()
         count = 0
-        for module in modules:
-            self.download_module(module.id, module)
-            count += 1
+        try:
+            modules = self.course.get_modules()
+        except Exception as e:
+            # not storing exception message
+            CanvasErrorHandler.handle_exception(
+                e, f'self.course.get_modules()'
+            )
+        else:
+            for module in modules:
+                self.download_module(module.id, module)
+                count += 1
         print(f"{count} modules from course.get_modules()")
 
 
