@@ -2,6 +2,7 @@
 
 from canvasapi.exceptions import ResourceDoesNotExist, Unauthorized, Forbidden, InvalidAccessToken, CanvasException
 import sys
+import logging
 
 # NOTE: You can see how the exceptions are raised in canvasapi.requester
 
@@ -13,13 +14,13 @@ class CanvasErrorHandler:
         """
         Main handler function called by other modules
         """
-        print(f"## Exception <{type(e).__name__}>: {str(e)}")
+        logging.debug(f"## Exception <{type(e).__name__}>: {str(e)}")
         
         error_type, message = CanvasErrorHandler.handle_canvas_exception(
             e, operation_description
         )
         if CanvasErrorHandler.is_fatal_error(error_type):
-            print(f"FATAL: {message}")
+            logging.critical(f"FATAL: {message}")
             sys.exit(1)
         else:
             CanvasErrorHandler.log_error(error_type, message, verbose=True)
@@ -62,16 +63,16 @@ class CanvasErrorHandler:
         """Log error messages with appropriate formatting"""
         if error_type == "student_limitation":
             if show_details:
-                print(f"    Note: {message}")
+                logging.info(f"    Note: {message}")
         elif error_type == "not_found":
-            print(f"    Skipping: {message}")
+            logging.warning(f"    Skipping: {message}")
         elif error_type in ["authentication", "authorization", "canvas_error", "unknown_error"]:
-            print(f"    ERROR: {message}")
+            logging.error(f"    ERROR: {message}")
             if verbose:
                 import traceback
                 traceback.print_exc()
         else:
-            print(f"    {message}")
+            logging.error(f"    {message}")
             
     @staticmethod
     def is_fatal_error(error_type):

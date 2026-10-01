@@ -663,8 +663,6 @@ class CourseDownloader:
         # canvas resource links
         domain = self._requester.original_url
         for link in links:
-            if 'href' not in link:
-                continue
             if domain in link.get('href', ""):
                 endpoint = link.get('data-api-endpoint', None)
                 returntype = link.get('data-api-returntype', None)
