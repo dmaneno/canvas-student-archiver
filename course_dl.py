@@ -196,9 +196,14 @@ class CourseDownloader:
         if id in self.files: #TODO - separate dict for each file source?
             return False
 
-        if not file:        
-            file = self.course.get_file(id, include = ["user", "usage_rights"])
-
+        if not file:
+            try:
+                file = self.course.get_file(id, include = ["user", "usage_rights"])
+            except Exception as e:
+                self.files[id] = CanvasErrorHandler.handle_exception(
+                    e, f'self.course.get_file({id}, include = ["user", "usage_rights"])'
+                )
+                return False
         # TODO: more types? submission, attachment, image. keep in separate folders?
         # so it may make more sense to change this to a string "file type"
         # embedded images are likely to be downloaded in a different way though.
@@ -233,11 +238,19 @@ class CourseDownloader:
             file.downloaded = False
         else:
             if not file_path.is_file():
-                file.download(file_path)
-                print(f"Downloaded: {file.filename}")
+                try:
+                    file.download(file_path)
+                except Exception as e:
+                    file.exception = CanvasErrorHandler.handle_exception(
+                        e, f'file.download({file_path})'
+                    )
+                    file.downloaded = False
+                else:
+                    print(f"Downloaded: {file.filename}")
+                    file.downloaded = True
             else:
                 print(f"File Already Exists: {file.filename}")
-            file.downloaded = True #NOTE: new attribute
+                file.downloaded = True #NOTE: new attribute
 
         # Add file info to dict
         file.file_path = file_path #NOTE: new attribute
@@ -246,7 +259,7 @@ class CourseDownloader:
 
 
     def download_file_by_url(self, url: str, id: int|None = None, is_submission:bool = False,
-                             assignment_name: str|None = None):
+                             assignment_name: str|None = None) -> bool:
         """
         Downloads Canvas files and attachments by url. This includes files that are not directly
         from course files, but are relevant to the course.
@@ -263,6 +276,9 @@ class CourseDownloader:
         # Maybe the resulting dicts are combined on the Canvas level call.
         if not id:
             id = url.split("/files/")[-1].split('/')[0]
+        if id in self.files:
+            return False
+
         source = ""
         source_id = None
 
@@ -281,9 +297,15 @@ class CourseDownloader:
         # endpoint apparently works without specifying source
         # endpoint = f'{source}/{source_id}/files/{id}' if source != "canvas" else f'files/{id}'
         endpoint = f'files/{id}'
-        file = self.get_file_from_endpoint(endpoint, include = ["user", "usage_rights"])
-
-        self.download_file(file.id, file, source, source_id, is_submission, assignment_name)
+        try:
+            file = self.get_file_from_endpoint(endpoint, include = ["user", "usage_rights"])
+        except Exception as e:
+            self.files[id] = CanvasErrorHandler.handle_exception(
+                e, f'self.get_file_from_endpoint({endpoint}, include = ["user", "usage_rights"])'
+            )
+            return False
+        
+        return self.download_file(file.id, file, source, source_id, is_submission, assignment_name)
 
 
     def get_file_from_endpoint(self, endpoint, **kwargs) -> File:
@@ -317,7 +339,8 @@ class CourseDownloader:
             return None
         try:
             folder = self.course.get_folder(folder_id)
-        except:
+        except Exception as e:
+            CanvasErrorHandler.handle_exception(e, f"self.course.get_folder({folder_id})")
             # folder is likely inaccessible to student (unauthorized) - default to None
             return None
         return Path(folder.full_name)
@@ -334,7 +357,9 @@ class CourseDownloader:
             try:
                 page = self.course.get_page(page_url)
             except Exception as e:
-                CanvasErrorHandler.handle_exception(e, f"self.course.get_page({page_url})")
+                self.pages[page_url] = CanvasErrorHandler.handle_exception(
+                    e, f"self.course.get_page({page_url})"
+                )
                 return False
 
         page.html_mod = self.process_html(page.body) #NOTE: new attribute
@@ -350,35 +375,50 @@ class CourseDownloader:
         # other in html content
         self.assignments[id] = None
 
-        if not assignment:    
-            assignment = self.course.get_assignment(id, include=["submission","score_statistics","ab_guid"])
+        if not assignment:
+            try:
+                assignment = self.course.get_assignment(id, include=["submission","score_statistics","ab_guid"])
+            except Exception as e:
+                self.assignments[id] = CanvasErrorHandler.handle_exception(
+                    e, f'self.course.get_assignment({id}, include=["submission","score_statistics","ab_guid"])'
+                )
+                return False
 
         #NOTE: new attribute
         assignment.html_mod = self.process_html(assignment.description)
-        #NOTE: new attribute
 
         if hasattr(assignment, "submission"):
-            assignment.submission_full = assignment.get_submission(assignment.submission["user_id"], include=["submission_history","submission_comments","submission_html_comments",
-                                                                    "rubric_assessment","assignment","visibility","course","user","group",
-                                                                    "read_status","student_entered_score"])
+            try:
+                assignment.submission_full = assignment.get_submission(
+                    assignment.submission["user_id"], include=["submission_history","submission_comments","submission_html_comments",
+                    "rubric_assessment","assignment","visibility","course","user","group",
+                    "read_status","student_entered_score"]
+                )
+            except Exception as e:
+                assignment.submission_full = CanvasErrorHandler.handle_exception(
+                    e, f'assignment.get_submission({assignment.submission["user_id"]}, ' 
+                    'include=["submission_history","submission_comments","submission_html_comments",'
+                    '"rubric_assessment","assignment","visibility","course","user","group",'
+                    '"read_status","student_entered_score"])'
+                )
+            else:
+                # grab file attachments
+                # this downloads for all submissions in sub history
+                # you may need to attach id to name since they're likely submitted with the same filename.
+                # perhaps you can also have this as a togglable option, some users may not care for old submissions
+                # TODO
+                for submission in assignment.submission_full.submission_history:
+                    # submission_full is a Submission object, but the submissions in history are probably still dicts
+                    for attachment in submission.get("attachments",[]):
+                        # attachments are not guaranteed to be from course
+                        self.download_attachment(attachment, assignment_name=assignment.name)
 
-            # grab file attachments
-            # this downloads for all submissions in sub history
-            # you may need to attach id to name since they're likely submitted with the same filename.
-            # perhaps you can also have this as a togglable option, some users may not care for old submissions
-            # TODO
-            for submission in assignment.submission_full.submission_history:
-                # submission_full is a Submission object, but the submissions in history are probably still dicts
-                for attachment in submission.get("attachments",[]):
-                    # attachments are not guaranteed to be from course
-                    self.download_attachment(attachment, assignment_name=assignment.name)
+                #NOTE: submission_full also have "submission_html_comments" which contain html content in "comment" attribute
+                for comment_obj in assignment.submission_full.submission_html_comments:
+                    comment_obj.html_mod = self.process_html(comment_obj.comment) #NOTE: new attribute
 
-            #NOTE: submission_full also have "submission_html_comments" which contain html content in "comment" attribute
-            for comment_obj in assignment.submission_full.submission_html_comments:
-                comment_obj.html_mod = self.process_html(comment_obj.comment) #NOTE: new attribute
-
-            _clean_obj(assignment.submission_full.attachments)
-            _clean_obj(assignment.submission_full)
+                _clean_obj(assignment.submission_full.attachments)
+                _clean_obj(assignment.submission_full)
         self.assignments[id] = _clean_obj(assignment)
         return True
 
@@ -388,8 +428,14 @@ class CourseDownloader:
             return False
         self.discussion_topics[id] = None
         if not topic:
-            topic = self.course.get_discussion_topic(id, include = ["sections_user_count","sections", "all_dates"])
-
+            try:
+                topic = self.course.get_discussion_topic(id, include = ["sections_user_count","sections", "all_dates"])
+            except Exception as e:
+                self.discussion_topics[id] = CanvasErrorHandler.handle_exception(
+                    e, f'self.course.get_discussion_topic({id}, '
+                    'include = ["sections_user_count","sections", "all_dates"])'
+                )
+                return False
         # NOTE: AFAIK, there's no consistent way to know from module item if a topic is an announcement or not
         # (the closest thing is "subscription_hold"). Rely on optional param
         topic.is_announcement = is_announcement #NOTE: new attribute
@@ -412,7 +458,12 @@ class CourseDownloader:
         # NOTE: This just returns the JSON (in dict form) as is from the response.
         # This means full_topic "attributes" are accessed by *dict keys*, not
         # object attribute dot notation.
-        full_topic: dict = self.course.get_full_discussion_topic(topic.id)
+        try:
+            full_topic: dict = self.course.get_full_discussion_topic(topic.id)
+        except Exception as e:
+            return CanvasErrorHandler.handle_exception(
+                e, f'self.course.get_full_discussion_topic({topic.id})'
+            )
 
         for entry in full_topic["view"]:
             entry["message_mod"] = self.process_html(entry["message"]) #NOTE: new attribute
@@ -436,13 +487,25 @@ class CourseDownloader:
             return False
         self.modules[id] = None
         if not module:
-            module = self.course.get_module(id)
+            try:
+                module = self.course.get_module(id)
+            except Exception as e:
+                self.modules[id] = CanvasErrorHandler.handle_exception(
+                    e, f'self.course.get_module({id})'
+                )
+                return False
 
-        module_items = module.get_module_items(include=["content_details"])
-        module.items = []
-        for item in module_items:
-            self.download_module_item(item.id, id, item)
-            module.items.append(item.id) # to make items easier to retrieve from module later
+        try:
+            module_items = module.get_module_items(include=["content_details"])
+        except Exception as e:
+            module.items = CanvasErrorHandler.handle_exception(
+                e, f'module.get_module_items(include=["content_details"])'
+            )
+        else:
+            module.items = []
+            for item in module_items:
+                self.download_module_item(item.id, id, item)
+                module.items.append(item.id) # to make items easier to retrieve from module later
 
         self.modules[id] = _clean_obj(module)
         return True
@@ -457,8 +520,15 @@ class CourseDownloader:
             return False
         self.module_items[id] = None
         if not item:
-            # unlike other resources, getting mod item requires both mod item id and mod id
-            item = self.course.get_module(module_id).get_module_item(id, include=["content_details"])
+            try:
+                # unlike other resources, getting mod item requires both mod item id and mod id
+                item = self.course.get_module(module_id).get_module_item(id, include=["content_details"])
+            except Exception as e:
+                self.module_items[id] = CanvasErrorHandler.handle_exception(
+                    e, f'self.course.get_module({module_id}).get_module_item({id}, '
+                    'include=["content_details"])'
+                )
+                return False
 
         match item.type:
             case "File":

@@ -9,7 +9,7 @@ import sys
 class CanvasErrorHandler:
 
     @staticmethod
-    def handle_exception(e, operation_description="operation"):
+    def handle_exception(e, operation_description="operation") -> dict:
         """
         Main handler function called by other modules
         """
@@ -23,6 +23,8 @@ class CanvasErrorHandler:
             sys.exit(1)
         else:
             CanvasErrorHandler.log_error(error_type, message, verbose=True)
+
+        return {"exception": f'{type(e).__name__}: {str(e)}'}
 
 
     @staticmethod
