@@ -57,11 +57,6 @@ class CourseDownloader:
 
     # main method that calls everything else
     def download_resources(self):
-        # syllabus + home page
-        if hasattr(self.course, "syllabus_body"):
-            self.course.syllabus_body_mod = self.process_html(self.course.syllabus_body)
-        if self.course.default_view == "wiki":
-            self.download_page("home")
         # files
         # only has effect if "files" tab was enabled for course
         print("files...")
@@ -81,6 +76,11 @@ class CourseDownloader:
         # download modules
         print("modules...")
         self.download_modules()
+        # syllabus + home page
+        if hasattr(self.course, "syllabus_body"):
+            self.course.syllabus_body_mod = self.process_html(self.course.syllabus_body)
+        if self.course.default_view == "wiki":
+            self.download_page("home")
         # TODO: clean course obj and save resources to jsons?
         _clean_obj(self.course)
         print("saving jsons...")
@@ -103,9 +103,14 @@ class CourseDownloader:
                 e, f'self.course.get_files(include = ["user", "usage_rights"])'
             )
         else:
-            for file in files:
-                self.download_file(file.id, file)
-                count += 1
+            try:
+                for file in files:
+                    self.download_file(file.id, file)
+                    count += 1
+            except Exception as e:
+                CanvasErrorHandler.handle_exception(
+                    e, f'iterating on PaginatedList[File]'
+                )
         print(f"{count} files from course.get_files()")
 
 
@@ -120,9 +125,14 @@ class CourseDownloader:
                 e, f'self.course.get_pages()'
             )
         else:
-            for page in pages:
-                self.download_page(page.url, page)
-                count += 1
+            try:
+                for page in pages:
+                    self.download_page(page.url, page)
+                    count += 1
+            except Exception as e:
+                CanvasErrorHandler.handle_exception(
+                    e, f'iterating on PaginatedList[Page]'
+                )
         print(f"{count} pages from course.get_pages()")
 
 
@@ -137,9 +147,14 @@ class CourseDownloader:
                 e, f'self.course.get_assignments(include=["submission","score_statistics","ab_guid"])'
             )
         else:
-            for assignment in assignments:
-                self.download_assignment(assignment.id, assignment)
-                count += 1
+            try:
+                for assignment in assignments:
+                    self.download_assignment(assignment.id, assignment)
+                    count += 1
+            except Exception as e:
+                CanvasErrorHandler.handle_exception(
+                    e, f'iterating on PaginatedList[Assignment]'
+                )
         print(f"{count} assignments from course.get_assignments()")
 
 
@@ -155,9 +170,14 @@ class CourseDownloader:
                 'include = ["sections_user_count","sections","all_dates"], only_announcements=True)'
             )
         else:
-            for announcement in announcements:
-                self.download_discussion_topic(announcement.id, announcement, is_announcement=True)
-                count += 1
+            try:
+                for announcement in announcements:
+                    self.download_discussion_topic(announcement.id, announcement, is_announcement=True)
+                    count += 1
+            except Exception as e:
+                CanvasErrorHandler.handle_exception(
+                    e, f'iterating on PaginatedList[DiscussionTopic] (announcements)'
+                )
         print(f"{count} announcements from course.get_discussion_topics()")
 
 
@@ -174,9 +194,14 @@ class CourseDownloader:
                 'include = ["sections_user_count","sections","all_dates"])'
             )
         else:
-            for topic in topics:
-                self.download_discussion_topic(topic.id, topic)
-                count += 1
+            try:
+                for topic in topics:
+                    self.download_discussion_topic(topic.id, topic)
+                    count += 1
+            except Exception as e:
+                CanvasErrorHandler.handle_exception(
+                    e, f'iterating on PaginatedList[DiscussionTopic]'
+                )
         print(f"{count} topics from course.get_discussion_topics()")
 
 
@@ -190,9 +215,14 @@ class CourseDownloader:
                 e, f'self.course.get_modules()'
             )
         else:
-            for module in modules:
-                self.download_module(module.id, module)
-                count += 1
+            try:
+                for module in modules:
+                    self.download_module(module.id, module)
+                    count += 1
+            except Exception as e:
+                CanvasErrorHandler.handle_exception(
+                    e, f'iterating on PaginatedList[Module]'
+                )
         print(f"{count} modules from course.get_modules()")
 
 
@@ -514,17 +544,20 @@ class CourseDownloader:
             )
 
         for entry in full_topic["view"]:
-            entry["message_mod"] = self.process_html(entry["message"]) #NOTE: new attribute
+            if "message" in entry:
+                entry["message_mod"] = self.process_html(entry["message"]) #NOTE: new attribute
             if "replies" in entry:
                 for reply in entry["replies"]:
-                    reply["message_mod"] = self.process_html(reply["message"]) #NOTE: new attribute
+                    if "message" in reply:
+                        reply["message_mod"] = self.process_html(reply["message"]) #NOTE: new attribute
             if "attachment" in entry:
                 self.download_attachment(entry["attachment"],source_name=topic.title)
                 # -> NOTE: some of these are not associated with the course itself.
                 #    either just in "files" broadly, or in user's files.
             # NOTE: according to docs, "attachments" (with 's') is deprecated and redundant,
             # but still gets returned in cached view. I'll just remove it
-            entry.pop("attachments")
+            if "attachments" in entry:
+                entry.pop("attachments")
         
         # Since full_topic is just a dict, no need to call _clean_obj()
         return full_topic
@@ -551,9 +584,14 @@ class CourseDownloader:
             )
         else:
             module.items = []
-            for item in module_items:
-                self.download_module_item(item.id, id, item)
-                module.items.append(item.id) # to make items easier to retrieve from module later
+            try:
+                for item in module_items:
+                    self.download_module_item(item.id, id, item)
+                    module.items.append(item.id) # to make items easier to retrieve from module later
+            except Exception as e:
+                module.items = CanvasErrorHandler.handle_exception(
+                    e, f'iterating on PaginatedList[ModuleItem]'
+                )
 
         self.modules[id] = _clean_obj(module)
         return True
@@ -643,6 +681,10 @@ class CourseDownloader:
                 # f"courses/{self.course.id}/..." from old repo may not be necessary
 
                 # https://developerdocs.instructure.com/services/canvas/basics/file.endpoint_attributes
+                # TODO: each returntype can also show up in a list like "[Module]" or "[File]".
+                # currently not accounted for... most of these instances are to link to pages like
+                # the modules or topics page, which will eventually be taken care of in download_modules(),
+                # download_discussion_topics(), etc.
                 match returntype:
                     case "File":
                         print("found file")
