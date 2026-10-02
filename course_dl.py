@@ -359,7 +359,7 @@ class CourseDownloader:
         # needs to direct to the file that's associated with this course?
         # Maybe the resulting dicts are combined on the Canvas level call.
         if not id:
-            id = url.split("/files/")[-1].split('/')[0]
+            id = int(url.split("/files/")[-1].split('/')[0])
         if id in self.files:
             return False
 
@@ -367,7 +367,7 @@ class CourseDownloader:
         # source_id = None
 
         if "/courses/" in url:
-            self.download_file(id)
+            return self.download_file(id)
         elif "/groups/" in url:
             source = "groups"
             # source_id = url.split("/groups/")[-1].split('/')[0]
