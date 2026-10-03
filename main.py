@@ -98,14 +98,20 @@ if __name__ == "__main__":
     print12(f"Creating output directory: {DL_LOCATION}\n")
     DL_LOCATION.mkdir(parents=True, exist_ok=True)
     
- 
-    courses_list = [
-        canvas.get_courses(enrollment_state = "active", include=["syllabus_body", "term"]), #TODO
-        canvas.get_courses(enrollment_state = "completed", include=["syllabus_body", "term"])
-    ]
-    #TODO: state=["unpublished", "available", "completed","deleted"]
-    #TODO: wrap calls in try except
-    #TODO: total_scores and other include attributes?
+    try:
+        courses_list = canvas.get_courses(
+            state=["unpublished","available","completed","deleted"],
+            include = ["syllabus_body","total_scores","term","total_students",
+                        "favorites","teachers","tabs","course_image","banner_image"]
+        )
+        courses = [course for course in courses_list]
+    except Exception as e:
+            CanvasErrorHandler.handle_exception(
+                e, 'retrieve and unpacking paginated list of courses'
+            )
+            print12("Error requesting courses from Canvas. Aborting...")
+            sys.exit(1)
+
 
     select = set(COURSE_SELECTION)
     skip = set(COURSES_TO_SKIP)
@@ -113,21 +119,23 @@ if __name__ == "__main__":
     course_dict = {}
     course_count = 0
 
-    for courses in courses_list:
-        for course in courses: #TODO
-            if course.id in skip or not hasattr(course, "name") or not hasattr(course, "term"): #TODO
-                continue
-            if len(select) > 0 and course.id not in select:
-                continue
+    print12(f'** Downloading {len(courses)} courses... **')
 
-            course_count += 1
-            course_dir: Path = DL_LOCATION / course.term["name"] / course.course_code
+    # TODO: progress bar?
+    for course in courses:
+        if course.id in skip or not hasattr(course, "name") or not hasattr(course, "term"): #TODO
+            continue
+        if len(select) > 0 and course.id not in select:
+            continue
 
-            course_downloader = CourseDownloader(course, course_dir, FILE_SIZE_THRESH)
-            print12(f"---Downloading resources for {course.course_code} (course count: {course_count})---")
-            course_downloader.download_resources()
-            course_dict[course.id] = clean_obj(course)
+        course_count += 1
+        course_dir: Path = DL_LOCATION / course.term["name"] / course.course_code
 
-    print12(f'** Finished downloading {len(course_dict)} courses **')
+        course_downloader = CourseDownloader(course, course_dir, FILE_SIZE_THRESH)
+        print12(f"---Downloading resources for {course.course_code} (course count: {course_count})---")
+        course_downloader.download_resources()
+        course_dict[course.id] = clean_obj(course)
+
+    print12(f'** Finished downloading {len(courses)} courses **')
     # print12(f'** writing course_dict to json in {DL_LOCATION} **')
     # write_obj_json(course_dict, DL_LOCATION)
