@@ -110,9 +110,9 @@ def clean_obj(obj: object):
         delattr(obj, "_requester")
     return obj
 
-def write_obj_json(obj: object, path: Path):
+def write_obj_json(obj: object, filepath: Path):
     json = jsonpickle.encode(obj,unpicklable=False, indent=4)
-    with open(path,"w") as out_file:
+    with open(filepath,"w") as out_file:
         out_file.write(json)
 
 def print12(string: str):
