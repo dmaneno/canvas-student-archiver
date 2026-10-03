@@ -88,7 +88,7 @@ def valid_folder(input_str: str|None) -> str|None:
 # Applies to modules, assignments, announcements, and discussions
 # If a folder exceeds this limit, a "-" will be added to the end to indicate it was shortened ("..." not valid)
 MAX_FNAME_SIZE = 70
-def short_fname(string: str|None) -> str:
+def short_fname(string: str|None) -> str|None:
     """
     Shortens filename, if necessary.
     """

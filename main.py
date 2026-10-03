@@ -8,7 +8,7 @@ import jsonpickle
 
 from course_dl import CourseDownloader
 from error_handler import  CanvasErrorHandler
-from util import clean_obj, write_obj_json, print12
+from util import clean_obj, write_obj_json, print12, short_fname, valid_fname
 
 API_URL = ""
 API_KEY = ""
@@ -116,26 +116,84 @@ if __name__ == "__main__":
     select = set(COURSE_SELECTION)
     skip = set(COURSES_TO_SKIP)
 
-    course_dict = {}
+    term_dict = {}
     course_count = 0
+    skipped = []
+    download_update_count = 0
+    unchanged_count = 0
 
-    print12(f'** Downloading {len(courses)} courses... **')
+    print12(f'** Fetched {len(courses)} courses. Beginning downloads... **')
 
-    # TODO: progress bar?
+    # TODO: progress bar? threading?
     for course in courses:
-        if course.id in skip or not hasattr(course, "name") or not hasattr(course, "term"): #TODO
-            continue
-        if len(select) > 0 and course.id not in select:
-            continue
-
         course_count += 1
-        course_dir: Path = DL_LOCATION / course.term["name"] / course.course_code
+        print12(f"--- COURSE COUNT: {course_count} ---")
 
-        course_downloader = CourseDownloader(course, course_dir, FILE_SIZE_THRESH)
-        print12(f"---Downloading resources for {course.course_code} (course count: {course_count})---")
-        course_downloader.download_resources()
-        course_dict[course.id] = clean_obj(course)
+        # -- Skips --
+        if not hasattr(course, "id"): # Unlikely but just in case
+            print12("No id found for course. Skipping...")
+            skipped.append(None)
+            continue
+        # NOTE: perhaps in future, write some UI to select / deselect available courses
+        # instead of doing it in config
+        if course.id in skip or (select and course.id not in select):
+            print12(f'Id {course.id} in "skip", or not in "select". Skipping...')
+            skipped.append(course.id)
+            continue
 
-    print12(f'** Finished downloading {len(courses)} courses **')
-    # print12(f'** writing course_dict to json in {DL_LOCATION} **')
-    # write_obj_json(course_dict, DL_LOCATION)
+        # -- Build Path --
+        # TODO: option to skip unavailable courses
+        name = None
+        code = None
+        term_folder = "Unavailable_Courses"
+        if hasattr(course, "name"):
+            name = course.name
+            code = course.course_code if hasattr(course, "course_code") else None
+            term_folder = course.term["name"] if hasattr(course, "term") else "Courses_Without_Term"
+
+        course_folder = short_fname(valid_fname(code)) if code else short_fname(valid_fname(name))
+        course_folder = course_folder if course_folder else str(course.id)        
+        course_path: Path = DL_LOCATION / short_fname(valid_fname(term_folder)) / course_folder
+
+        print12(f'Course: [{course.id}] [{code}]: {name}')
+
+        #  -- Download Course --
+        # #TODO: conditional download based on overwrite config dict or set
+        # need to update constructor with optional config dict
+        if not course_path.is_dir(): # or overwrite is true
+            course_downloader = CourseDownloader(course, course_path, FILE_SIZE_THRESH)
+            print12(f"Downloading resources to {str(course_path)}...")
+            course_downloader.download_resources()
+            download_update_count += 1
+        else:
+            print12(f'** {str(course_path)} already exists and overwrite is disabled **')
+            unchanged_count += 1
+
+        # -- Add course to term / course dictionary --
+        if term_folder not in term_dict:
+            term_dict[term_folder] = {
+                "count":        0,
+                "course_list":  [],
+            }
+        term_dict[term_folder]["count"] += 1
+        term_dict[term_folder]["course_list"].append({
+            "id":   course.id,
+            "code": code,
+            "name": name,
+        })
+
+    print12(f'** Finished downloading courses **')
+    print12(f'Courses newly archived or updated: {download_update_count}')
+    print12(f'Courses already archived and unchanged: {unchanged_count}')
+    print12(f'Skipped {len(skipped)} courses: {skipped}')
+    print12("----------------------------------------------------------------\n"
+            f'Total courses currently archived: {len(courses) - len(skipped)}\n')
+
+    # Write top-level JSON of term / course list
+    json_path: Path = DL_LOCATION / "courses_by_terms.json"
+    if not json_path.is_file(): #or term_json_overwrite: #TODO: overwrite config dict
+        print12(f'** writing term_dict to json in {str(json_path)} **')
+        write_obj_json(term_dict, json_path)
+    else:
+        print12(f'** {str(json_path)} already exists and overwrite is disabled **')
+                
