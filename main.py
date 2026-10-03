@@ -100,9 +100,12 @@ if __name__ == "__main__":
     
  
     courses_list = [
-        canvas.get_courses(enrollment_state = "active", include=["syllabus_body", "term"]),
+        canvas.get_courses(enrollment_state = "active", include=["syllabus_body", "term"]), #TODO
         canvas.get_courses(enrollment_state = "completed", include=["syllabus_body", "term"])
     ]
+    #TODO: state=["unpublished", "available", "completed","deleted"]
+    #TODO: wrap calls in try except
+    #TODO: total_scores and other include attributes?
 
     select = set(COURSE_SELECTION)
     skip = set(COURSES_TO_SKIP)
@@ -111,8 +114,8 @@ if __name__ == "__main__":
     course_count = 0
 
     for courses in courses_list:
-        for course in courses:
-            if course.id in skip or not hasattr(course, "name") or not hasattr(course, "term"):
+        for course in courses: #TODO
+            if course.id in skip or not hasattr(course, "name") or not hasattr(course, "term"): #TODO
                 continue
             if len(select) > 0 and course.id not in select:
                 continue
@@ -125,6 +128,6 @@ if __name__ == "__main__":
             course_downloader.download_resources()
             course_dict[course.id] = clean_obj(course)
 
-    write_obj_json(course_dict)
-
     print12(f'** Finished downloading {len(course_dict)} courses **')
+    # print12(f'** writing course_dict to json in {DL_LOCATION} **')
+    # write_obj_json(course_dict, DL_LOCATION)
