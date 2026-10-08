@@ -23,6 +23,9 @@ COURSES_TO_SKIP = []
 
 FILE_SIZE_THRESH = -1
 
+OVERWRITE_CONFIG = {}
+LOAD_FROM_JSON = True
+
 # code for _load_credentials, arg parsing, and initial Canvas connection setup based on
 # https://github.com/davekats/canvas-student-data-export/blob/master/export.py
 
@@ -73,8 +76,12 @@ if __name__ == "__main__":
 
     FILE_SIZE_THRESH = creds.get("FILE_SIZE_THRESH", -1)
 
+    OVERWRITE_CONFIG = creds.get("OVERWRITE_CONFIG", {})
+    LOAD_FROM_JSON = creds.get("LOAD_FROM_JSON", True)
+
     # Update output directory
     DL_LOCATION = Path(args.output)
+
 
     # Connect to Canvas =========================================================
 
@@ -161,7 +168,8 @@ if __name__ == "__main__":
         # #TODO: conditional download based on overwrite config dict or set
         # need to update constructor with optional config dict
         if not course_path.is_dir(): # or overwrite is true
-            course_downloader = CourseDownloader(course, course_path, FILE_SIZE_THRESH)
+            course_downloader = CourseDownloader(course, course_path, FILE_SIZE_THRESH,
+                                                 OVERWRITE_CONFIG, LOAD_FROM_JSON)
             print12(f"Downloading resources to {str(course_path)}...")
             course_downloader.download_resources()
             download_update_count += 1
