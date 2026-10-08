@@ -26,6 +26,19 @@ FILE_SIZE_THRESH = -1
 OVERWRITE_CONFIG = {}
 LOAD_FROM_JSON = True
 
+# values themselves are not used as of now, but length is.
+# (for some conditional logic on whether to create CourseDownloader for course.)
+# If more resources are added to CourseDownloader (e.g. quizzes), add to this list.
+EXPECTED_COURSE_JSONS = [
+    "course",
+    "files",
+    "pages",
+    "assignments",
+    "discussion_topics",
+    "modules",
+    "module_items",
+]
+
 # code for _load_credentials, arg parsing, and initial Canvas connection setup based on
 # https://github.com/davekats/canvas-student-data-export/blob/master/export.py
 
@@ -36,6 +49,19 @@ def _load_credentials(path: str) -> dict:
             return yaml.full_load(f) or {}
     except FileNotFoundError:
         return {}
+
+def _all_json_archives_exist(course_path: Path) -> bool:
+    """
+    Returns True if all jsons in EXPECTED_COURSE_JSONS exist in course_path
+    """
+    if not course_path.is_dir():
+        return False
+    for name in EXPECTED_COURSE_JSONS:
+        json_path = course_path / f"{name}.json"
+        if not json_path.is_file():
+            return False
+    return True
+
 
 if __name__ == "__main__":
 
@@ -173,7 +199,14 @@ if __name__ == "__main__":
         # NOTE: runs on assumption that if the directory exists, then the jsons for course also exist...
         # i.e. if for some reason the directory exists but nothing is in there, and overwrite_configs are false,
         # then the program won't download the resources even though the course hasn't been archived yet
-        if not course_path.is_dir() or course_overwrite_flag: # or overwrite is true
+        # NOTE: json len logic would break if there's multiple versions of a resource json, should that be implemented in the future.
+        # would need to check like json path exists for json in expected jsons.
+        # could write a helper method maybe (_all_jsons_exist)
+        if (
+            not course_path.is_dir()
+            or len(list(course_path.glob('*.json'))) < len(EXPECTED_COURSE_JSONS) 
+            or course_overwrite_flag
+        ):
             course_downloader = CourseDownloader(course, course_path, FILE_SIZE_THRESH,
                                                  course_overwrite_config, LOAD_FROM_JSON)
             print12(f"Downloading resources to {str(course_path)}...")
