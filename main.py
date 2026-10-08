@@ -196,15 +196,9 @@ if __name__ == "__main__":
         print12(f'Course: [{course.id}] [{code}]: {name}')
 
         #  -- Download Course --
-        # NOTE: runs on assumption that if the directory exists, then the jsons for course also exist...
-        # i.e. if for some reason the directory exists but nothing is in there, and overwrite_configs are false,
-        # then the program won't download the resources even though the course hasn't been archived yet
-        # NOTE: json len logic would break if there's multiple versions of a resource json, should that be implemented in the future.
-        # would need to check like json path exists for json in expected jsons.
-        # could write a helper method maybe (_all_jsons_exist)
         if (
             not course_path.is_dir()
-            or len(list(course_path.glob('*.json'))) < len(EXPECTED_COURSE_JSONS) 
+            or not _all_json_archives_exist(course_path)
             or course_overwrite_flag
         ):
             course_downloader = CourseDownloader(course, course_path, FILE_SIZE_THRESH,
