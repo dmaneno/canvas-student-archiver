@@ -77,6 +77,11 @@ if __name__ == "__main__":
     FILE_SIZE_THRESH = creds.get("FILE_SIZE_THRESH", -1)
 
     OVERWRITE_CONFIG = creds.get("OVERWRITE_CONFIG", {})
+    course_overwrite_config = OVERWRITE_CONFIG.get("course_level",{})
+    # to check if necessary to step into download_resources() at all for already-archived courses
+    course_overwrite_flag = True if True in course_overwrite_config.values() else False
+
+
     LOAD_FROM_JSON = creds.get("LOAD_FROM_JSON", True)
 
     # Update output directory
@@ -165,11 +170,12 @@ if __name__ == "__main__":
         print12(f'Course: [{course.id}] [{code}]: {name}')
 
         #  -- Download Course --
-        # #TODO: conditional download based on overwrite config dict or set
-        # need to update constructor with optional config dict
-        if not course_path.is_dir(): # or overwrite is true
+        # NOTE: runs on assumption that if the directory exists, then the jsons for course also exist...
+        # i.e. if for some reason the directory exists but nothing is in there, and overwrite_configs are false,
+        # then the program won't download the resources even though the course hasn't been archived yet
+        if not course_path.is_dir() or course_overwrite_flag: # or overwrite is true
             course_downloader = CourseDownloader(course, course_path, FILE_SIZE_THRESH,
-                                                 OVERWRITE_CONFIG, LOAD_FROM_JSON)
+                                                 course_overwrite_config, LOAD_FROM_JSON)
             print12(f"Downloading resources to {str(course_path)}...")
             course_downloader.download_resources()
             download_update_count += 1
@@ -199,7 +205,7 @@ if __name__ == "__main__":
 
     # Write top-level JSON of term / course list
     json_path: Path = DL_LOCATION / "courses_by_terms.json"
-    if not json_path.is_file(): #or term_json_overwrite: #TODO: overwrite config dict
+    if not json_path.is_file() or OVERWRITE_CONFIG.get("courses_by_terms", False):
         print12(f'** writing term_dict to json in {str(json_path)} **')
         write_obj_json(term_dict, json_path)
     else:
