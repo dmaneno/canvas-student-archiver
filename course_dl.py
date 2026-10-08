@@ -36,7 +36,8 @@ def _write_obj_json(obj: object, path: Path):
 #         out_file.write(html)
 
 class CourseDownloader:
-    def __init__(self, course: Course, course_dir: Path, file_size_thresh: str|int = -1):
+    def __init__(self, course: Course, course_dir: Path, file_size_thresh: str|int = -1,
+                 overwrite_config: dict|None = None, load_from_json: bool = True):
         self.course = course
         self._requester = course._requester
 
@@ -54,6 +55,33 @@ class CourseDownloader:
         # in bytes. -1 = no thresh, 0 = don't download anything, anything higher is regular thresh
         # default is no threshold (-1)
         self.file_size_thresh: int = parse_size(file_size_thresh)
+
+        # see https://stackoverflow.com/questions/26320899/why-is-the-empty-dictionary-a-dangerous-default-value-in-python#26320938
+        if not overwrite_config:
+            overwrite_config = {}
+        self.overwrite_config = {
+            "course":               overwrite_config.get("course",False),
+            "files":                overwrite_config.get("files",False),
+            "pages":                overwrite_config.get("pages",False),
+            "assignments":          overwrite_config.get("assignments",False),
+            "discussion_topics":    overwrite_config.get("discussion_topics",False),
+            "modules":              overwrite_config.get("modules",False),
+            "module_items":         overwrite_config.get("module_items",False),
+        }
+
+        # mainly for load_jsons() and save_as_jsons()
+        self.name_to_obj = {
+            "course":               self.course,
+            "files":                self.files,
+            "pages":                self.pages,
+            "assignments":          self.assignments,
+            "discussion_topics":    self.discussion_topics,
+            "modules":              self.modules,
+            "module_items":         self.module_items,
+        }
+
+        if load_from_json:
+            self.load_jsons()
         
 
 
@@ -78,8 +106,10 @@ class CourseDownloader:
         # download modules
         print12("modules...")
         self.download_modules()
+
         # syllabus + home page
         if hasattr(self.course, "syllabus_body"):
+            # NOTE: new attribute
             self.course.syllabus_body_mod = self.process_html(self.course.syllabus_body)
         if self.course.default_view == "wiki":
             try:
@@ -90,6 +120,17 @@ class CourseDownloader:
                 )
             else:
                 self.download_page(page.url, page)
+        # grade standard
+        if hasattr(self.course, "grading_standard_id"):
+            standard_id = self.course.grading_standard_id
+            try:
+                # NOTE: new attribute
+                self.course.grading_standard_obj = self.course.get_single_grading_standard(standard_id)
+            except Exception as e:
+                CanvasErrorHandler.handle_exception(
+                    e, f'self.course.get_single_grading_standard({standard_id})'
+                )
+                self.course.grading_standard_obj = None
         # clean course obj and save resources to jsons
         _clean_obj(self.course)
         print12("saving jsons...")
@@ -235,31 +276,34 @@ class CourseDownloader:
         print12(f"{count} modules from course.get_modules()")
 
 
+
+    # --- JSON methods ----------------------------------------------------------------
+
+    def load_jsons(self):
+        """
+        Loads resource dicts from jsons if they exist.
+
+        Skips course.json, because course object should already be retrieved from top-level
+        module + passed into constructor.
+        """
+        for name, obj in self.name_to_obj.items():
+            if name == "course":
+                continue
+            filepath = self.course_dir / f"{name}.json"
+            if filepath.is_file():
+                json = filepath.read_text()
+                obj.update(jsonpickle.decode(json))
+
     def save_as_jsons(self):
         """
         Stores resource dicts / objects into separate jsons in course's folder
         """
-        objs = [
-            self.course,
-            self.files,
-            self.pages,
-            self.assignments,
-            self.discussion_topics,
-            self.modules,
-            self.module_items,
-            ]
-        names = [
-            "course",
-            "files",
-            "pages",
-            "assignments",
-            "discussion_topics",
-            "modules",
-            "module_items"
-        ]
-        for obj, name in zip(objs, names):
+        for name, obj in self.name_to_obj.items():
             filepath = self.course_dir / f"{name}.json"
-            _write_obj_json(obj, filepath)
+            if not filepath.is_file() or self.overwrite_config[name]: 
+                _write_obj_json(obj, filepath)
+            else:
+                print12(f"{str(filepath)} already exists and overwrite config for it is False")
 
 
 
@@ -279,6 +323,7 @@ class CourseDownloader:
     def download_file(self, id: int, file: File|None = None, source_name: str|None = None,
                       topic_name: str|None = None, assignment_name: str|None = None) -> bool:
         # Downloads file if it hasn't already been downloaded
+        id = str(id) # for purposes of proper matching with json-loaded dict keys
         if id in self.files:
             return False
 
@@ -453,6 +498,7 @@ class CourseDownloader:
 
 
     def download_assignment(self, id: int, assignment: Assignment|None = None) -> bool:
+        id = str(id) # for purposes of proper matching with json-loaded dict keys
         if id in self.assignments:
             return False
         # Add to dict with temp value - address case of two resources referring to each
@@ -504,6 +550,7 @@ class CourseDownloader:
 
 
     def download_discussion_topic(self, id: int, topic: DiscussionTopic|None = None, is_announcement: bool = False) -> bool:
+        id = str(id) # for purposes of proper matching with json-loaded dict keys
         if id in self.discussion_topics:
             return False
         self.discussion_topics[id] = None
@@ -563,6 +610,7 @@ class CourseDownloader:
 
 
     def download_module(self, id: int, module: Module|None = None) -> bool:
+        id = str(id) # for purposes of proper matching with json-loaded dict keys
         if id in self.modules:
             return False
         self.modules[id] = None
@@ -601,6 +649,7 @@ class CourseDownloader:
         Checks what resource type the module item is, downloads the respective resource, and stores
         module item metadata in self.module_items.
         """
+        id = str(id) # for purposes of proper matching with json-loaded dict keys
         if id in self.module_items:
             return False
         self.module_items[id] = None
