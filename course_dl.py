@@ -106,31 +106,9 @@ class CourseDownloader:
         # download modules
         print12("modules...")
         self.download_modules()
-
-        # syllabus + home page
-        if hasattr(self.course, "syllabus_body"):
-            # NOTE: new attribute
-            self.course.syllabus_body_mod = self.process_html(self.course.syllabus_body)
-        if self.course.default_view == "wiki":
-            try:
-                page = self.course.show_front_page() # front page is marked with front_page bool attribute
-            except Exception as e:
-                CanvasErrorHandler.handle_exception(
-                    e, f'self.course.show_front_page()'
-                )
-            else:
-                self.download_page(page.url, page)
-        # grade standard
-        if hasattr(self.course, "grading_standard_id"):
-            standard_id = self.course.grading_standard_id
-            try:
-                # NOTE: new attribute
-                self.course.grading_standard_obj = self.course.get_single_grading_standard(standard_id)
-            except Exception as e:
-                CanvasErrorHandler.handle_exception(
-                    e, f'self.course.get_single_grading_standard({standard_id})'
-                )
-                self.course.grading_standard_obj = None
+        # download other course info (syllabus, front page, grading standard)
+        print12("other course info (syllabus, etc.)...")
+        self.download_course_info()
         # clean course obj and save resources to jsons
         _clean_obj(self.course)
         print12("saving jsons...")
@@ -275,6 +253,40 @@ class CourseDownloader:
                 )
         print12(f"{count} modules from course.get_modules()")
 
+    def download_course_info(self):
+        """
+        Downloads course syllabus, front page, and grading standard, if they exist.
+        """
+        # syllabus
+        if hasattr(self.course, "syllabus_body"):
+            # NOTE: new attribute
+            self.course.syllabus_body_mod = self.process_html(self.course.syllabus_body)
+        
+        # home page aka front page
+        # if self.course.default_view == "wiki":
+        # ^ may be possible for course to have front page without it being the default view
+        # (same idea with syllabus body) so try to request it regardless of default
+        try:
+            page = self.course.show_front_page() # front page is marked with front_page bool attribute
+        except Exception as e:
+            CanvasErrorHandler.handle_exception(
+                e, f'self.course.show_front_page()'
+            )
+        else:
+            self.download_page(page.url, page)
+        
+        # grade standard
+        if hasattr(self.course, "grading_standard_id"):
+            standard_id = self.course.grading_standard_id
+            try:
+                # NOTE: new attribute
+                self.course.grading_standard_obj = self.course.get_single_grading_standard(standard_id)
+            except Exception as e:
+                CanvasErrorHandler.handle_exception(
+                    e, f'self.course.get_single_grading_standard({standard_id})'
+                )
+                self.course.grading_standard_obj = None
+
 
 
     # --- JSON methods ----------------------------------------------------------------
@@ -302,6 +314,11 @@ class CourseDownloader:
             filepath = self.course_dir / f"{name}.json"
             if not filepath.is_file() or self.overwrite_config[name]: 
                 _write_obj_json(obj, filepath)
+                # NOTE: in future, maybe implement "version history" by moving existing json
+                # to a new timestamped filename before overwriting.
+                # - This could be desirable in case future downloads actually cause a loss in
+                # - information due to the Canvas user losing access to certain resources
+                # - after a course / enrollment concludes.
             else:
                 print12(f"{str(filepath)} already exists and overwrite config for it is False")
 
