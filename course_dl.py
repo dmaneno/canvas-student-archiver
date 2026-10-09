@@ -266,6 +266,7 @@ class CourseDownloader:
         # if self.course.default_view == "wiki":
         # ^ may be possible for course to have front page without it being the default view
         # (same idea with syllabus body) so try to request it regardless of default
+        # NOTE: front page is just a normal page with front_page attribute set to True
         try:
             page = self.course.show_front_page() # front page is marked with front_page bool attribute
         except Exception as e:
