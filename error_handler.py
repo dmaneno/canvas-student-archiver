@@ -50,7 +50,7 @@ class CanvasErrorHandler:
             return "student_limitation", f"Access forbidden for {operation_description}. This may be normal for student accounts."
         
         elif isinstance(e, ResourceDoesNotExist):
-            return "not_found", f"Resource not found for {operation_description}. It may have been deleted or moved."
+            return "not_found", f"Resource not found for {operation_description}. It may have been deleted or moved: {str(e)}"
         
         elif isinstance(e, CanvasException):
             return "canvas_error", f"Canvas API error during {operation_description}: {str(e)}"
@@ -66,6 +66,9 @@ class CanvasErrorHandler:
                 logging.info(f"    Note: {message}")
         elif error_type == "not_found":
             logging.warning(f"    Skipping: {message}")
+            # if verbose:
+            #     import traceback
+            #     traceback.print_exc()
         elif error_type in ["authentication", "authorization", "canvas_error", "unknown_error"]:
             logging.error(f"    ERROR: {message}")
             if verbose:
