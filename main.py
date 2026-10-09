@@ -5,6 +5,8 @@ from pathlib import Path
 from canvasapi import Canvas
 import yaml
 import jsonpickle
+import time
+from datetime import datetime
 
 from course_dl import CourseDownloader
 from error_handler import  CanvasErrorHandler
@@ -135,6 +137,9 @@ if __name__ == "__main__":
  
     print12(f"Creating output directory: {DL_LOCATION}\n")
     DL_LOCATION.mkdir(parents=True, exist_ok=True)
+
+    # start_time = time.time()
+    start_time = datetime.now()
     
     try:
         courses_list = canvas.get_courses(
@@ -162,7 +167,14 @@ if __name__ == "__main__":
 
     print12(f'** Fetched {len(courses)} courses. Beginning downloads... **')
 
-    # TODO: progress bar? threading?
+    # NOTE: progress bar? threading?
+    # NOTE: if implementing threading in future:
+    # - turn this loop into inner function,
+    # - make it return term_folder, id, code, name
+    # - move term_dict stuff out, after threadpoolexecutor context 
+    # - have threadpoolexecutor map inner function with courses list
+    # - create term_dict with counts from results of threadpoolexecutor
+    # - ** need to consider possibility of rate limiting and workarounds **
     for course in courses:
         course_count += 1
         print12(f"--- COURSE COUNT: {course_count} ---")
@@ -180,7 +192,7 @@ if __name__ == "__main__":
             continue
 
         # -- Build Path --
-        # TODO: option to skip unavailable courses
+        # NOTE: future, option to skip unavailable courses
         name = None
         code = None
         term_folder = "Unavailable_Courses"
@@ -237,4 +249,9 @@ if __name__ == "__main__":
         write_obj_json(term_dict, json_path)
     else:
         print12(f'** {str(json_path)} already exists and overwrite is disabled **')
-                
+
+    # time.perf_counter is another option
+    # finish_time = time.time()
+    finish_time = datetime.now() #for human readable
+
+    print12(f'Finished archiving in {finish_time-start_time}')
