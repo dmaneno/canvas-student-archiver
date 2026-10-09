@@ -276,16 +276,20 @@ class CourseDownloader:
             self.download_page(page.url, page)
         
         # grade standard
-        if hasattr(self.course, "grading_standard_id"):
+        # NOTE: new attribute
+        self.course.grading_standard_obj = None
+        if hasattr(self.course, "grading_standard_id") and self.course.grading_standard_id:
             standard_id = self.course.grading_standard_id
             try:
-                # NOTE: new attribute
-                self.course.grading_standard_obj = self.course.get_single_grading_standard(standard_id)
+                self.course.grading_standard_obj = _clean_obj(
+                    self.course.get_single_grading_standard(standard_id)
+                )
             except Exception as e:
-                CanvasErrorHandler.handle_exception(
+                # can be normal that standard associated with id doesn't exist anymore
+                self.course.grading_standard_obj = CanvasErrorHandler.handle_exception(
                     e, f'self.course.get_single_grading_standard({standard_id})'
                 )
-                self.course.grading_standard_obj = None
+                # self.course.grading_standard_obj = None
 
 
 
@@ -313,14 +317,16 @@ class CourseDownloader:
         for name, obj in self.name_to_obj.items():
             filepath = self.course_dir / f"{name}.json"
             if not filepath.is_file() or self.overwrite_config[name]: 
+                created_or_updated = "CREATED" if not filepath.is_file() else "UPDATED"
                 _write_obj_json(obj, filepath)
+                print12(f"{str(filepath)} -- {created_or_updated}")
                 # NOTE: in future, maybe implement "version history" by moving existing json
                 # to a new timestamped filename before overwriting.
                 # - This could be desirable in case future downloads actually cause a loss in
                 # - information due to the Canvas user losing access to certain resources
                 # - after a course / enrollment concludes.
             else:
-                print12(f"{str(filepath)} already exists and overwrite config for it is False")
+                print12(f"{str(filepath)} -- Already exists & overwrite config for it is False")
 
 
 
