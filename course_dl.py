@@ -267,6 +267,7 @@ class CourseDownloader:
         # ^ may be possible for course to have front page without it being the default view
         # (same idea with syllabus body) so try to request it regardless of default
         # NOTE: front page is just a normal page with front_page attribute set to True
+        # fp_exists = False # TODO remove
         try:
             page = self.course.show_front_page() # front page is marked with front_page bool attribute
         except Exception as e:
@@ -275,6 +276,14 @@ class CourseDownloader:
             )
         else:
             self.download_page(page.url, page)
+        #     fp_exists = True # TODO remove
+        # if hasattr(self.course, "default_view"):
+        #     if not fp_exists:
+        #         print12(f"Front page does not exist. Default view: {self.course.default_view}")
+        #     if fp_exists and self.course.default_view == "wiki":
+        #         print12(f"Default View is Wiki & Front Page Exists")
+        #     if fp_exists and self.course.default_view != "wiki":
+        #         print12(f"Default View is NOT Wiki & Front Page Exists")
         
         # grade standard
         # NOTE: new attribute
