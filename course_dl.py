@@ -24,6 +24,9 @@ def _clean_obj(obj: object):
     # append statement
     if hasattr(obj, "_requester"):
         delattr(obj, "_requester")
+    elif isinstance(obj, dict):
+        if "_requester" in obj:
+            obj.pop("_requester")
     return obj
 
 def _write_obj_json(obj: object, path: Path):
@@ -576,7 +579,11 @@ class CourseDownloader:
                 for comment_obj in assignment.submission_full.submission_html_comments:
                     comment_obj["comment_mod"] = self.process_html(comment_obj.get("comment", "")) #NOTE: new attribute
 
-                _clean_obj(assignment.submission_full.attachments)
+                #submission_full.attachments is a list of dicts, need to handle differently.
+                if hasattr(assignment.submission_full, "attachments"):
+                    for attachment in assignment.submission_full.attachments:
+                        _clean_obj(attachment) # attachment is a dict
+                # _clean_obj(assignment.submission_full.attachments)
                 _clean_obj(assignment.submission_full)
         self.assignments[id] = _clean_obj(assignment)
         return True
