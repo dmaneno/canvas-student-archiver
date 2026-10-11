@@ -191,27 +191,36 @@ if __name__ == "__main__":
 
             # IF SOURCE DIR FOR COURSE EXISTS
             if source_course_dir:
-                search_file = list(source_course_dir.rglob(file.filename))
+                # based on how davekats exporter named downloaded files:
+                search_pattern = valid_fname(file.display_name)
+                if hasattr(file, "tag") and file.tag == "submission":
+                    search_pattern = valid_fname(f"{file.id}_{file.og_filename}")
+
+                print12(f"search pattern: {search_pattern}")
+                search_file = list(source_course_dir.rglob(search_pattern))
                 # if found, compare file size and....
                 if len(search_file) != 0:
-                    source_file_path = search_file[0]
-                    print12(f"file found at {source_file_path}")
+                    for source_file_path in search_file: 
+                    # source_file_path = search_file[0]
+                        print12(f"file found at {source_file_path}")
 
-                    source_size = source_file_path.stat().st_size
-                    print12(f"source file size: {source_size}")
-                    print12(f"expected size: {file.size}")
-                    if file.size == source_size:
-                        #move it to target_file_path
-                        print12(f"size and name matches, moving to {target_file_path}")
-                        # mark download = true IN DICT, not object
-                        file_dict["downloaded"] = True
-                        continue # or early return if function
+                        source_size = source_file_path.stat().st_size
+                        print12(f"source file size: {source_size}")
+                        print12(f"expected size: {file.size}")
+                        if file.size == source_size:
+                            print12(f"size and name matches, moving to {target_file_path}")
+                            #move it to target_file_path
+                            # mark download = true IN DICT, not object
+                            file_dict["downloaded"] = True
+                            continue # or early return if function
+                        else:
+                            print12(f"size does not match.")
 
 
             print12(f"file not found in source directory. attempting to download.")
             # ELSE TRY TO DOWNLOAD FROM CANVAS
             if FILE_SIZE_THRESH >= 0 and file.size > FILE_SIZE_THRESH:
-                print("not downloading (over threshold)")
+                print12(f"{file.filename} - not downloading (over threshold)")
                 pass #don't download
             else:
                 if not target_file_path.is_file():
@@ -223,6 +232,7 @@ if __name__ == "__main__":
                         # file["exception"] = CanvasErrorHandler.handle_exception(
                         #     e, f'file.download({target_file_path})'
                         # )
+                        # print message. don't modify dict. well, I guess you can update to exception.
                         # file_dict["downloaded"] = False
                     else:
                         print12(f"Downloaded: {file.filename}")
@@ -234,7 +244,8 @@ if __name__ == "__main__":
 
         # write back to json path
         # write_obj_json(file_dict, json_path)
-        print12(f"new file dict:\n{files}")
+        new_json = jsonpickle.encode(files,unpicklable=False, indent=4)
+        print12(f"new file dict:\n{new_json}")
 
 
     finish_time = datetime.now()
