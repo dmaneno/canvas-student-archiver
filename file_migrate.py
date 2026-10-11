@@ -3,6 +3,7 @@ import argparse
 from pathlib import Path
 
 from canvasapi import Canvas
+from canvasapi.file import File
 import yaml
 import jsonpickle
 import time
@@ -129,17 +130,115 @@ if __name__ == "__main__":
     #         sys.exit(1)
 
 
-    select = set(COURSE_SELECTION)
-    skip = set(COURSES_TO_SKIP)
+    # select = set(COURSE_SELECTION)
+    # skip = set(COURSES_TO_SKIP)
 
 
 
     # ---------------------------------------------------
 
+    requester = user._requester
+
     # for courses in courses_list:
 
     # path to new output
     # path to old output
+    # NOTE: if you want to use this in threading, prob have to cast to list
+    # json_paths = TARGET_DIR.rglob("files.json")
+    json_paths = list(TARGET_DIR.rglob("files.json"))
+    print12(f"found {len(json_paths)} files.json files")
+
+    # EACH COURSE
+    # TODO: selector for courses? - could possibly do like f string for above rglob. get code for course id ahead of time
+    for json_path in json_paths:
+        # get course dir and check if dir exists in source dir
+        target_course_dir = json_path.parent
+        search = list(SOURCE_DIR.rglob(target_course_dir.name))
+        source_course_dir = None
+        if len(search) != 0:
+            source_course_dir = search[0]
+        # else:
+        #     pass #TODO need to download all jsons manually. maybe just a conditional based on truthiness of source_course_dir
+
+        print12(f"json_path: {json_path}")
+        print12(f"target_course_dir: {target_course_dir}")
+        print12(f"source_course_dir: {source_course_dir}")
+
+        # load from json
+        files = {}
+        # if json_path.is_file(): # should be...
+        json = json_path.read_text()
+        files.update(jsonpickle.decode(json))
+
+        # NOTE - if you want to update the json, you're gonna have to update the original dict, NOT the object that you're creating from it.
+        # File object will just be to download the file.
+
+        # NOTE - "filepath" from dict entries are a plain string starting from output. so you need to get TARGET_DIR, get its parent,
+        # and append the "filepath"
+
+        # EACH FILE
+        for id, file_dict in files.items():
+
+            if file_dict["downloaded"] == True:
+                print12(f"file {id} at {file_dict["file_path"]} is already downloaded")
+                continue
+
+            file = File(requester, file_dict)
+
+            target_file_path = TARGET_DIR.parent / Path(file.file_path) #NOTE assuming that TARGET_DIR is "output" folder, root folder of course downloading...
+
+            # TODO - submission detection? i put id at end, davekats put at front...
+
+            # IF SOURCE DIR FOR COURSE EXISTS
+            if source_course_dir:
+                search_file = list(source_course_dir.rglob(file.filename))
+                # if found, compare file size and....
+                if len(search_file) != 0:
+                    source_file_path = search_file[0]
+                    print12(f"file found at {source_file_path}")
+
+                    source_size = source_file_path.stat().st_size
+                    print12(f"source file size: {source_size}")
+                    print12(f"expected size: {file.size}")
+                    if file.size == source_size:
+                        #move it to target_file_path
+                        print12(f"size and name matches, moving to {target_file_path}")
+                        # mark download = true IN DICT, not object
+                        file_dict["downloaded"] = True
+                        continue # or early return if function
+
+
+            print12(f"file not found in source directory. attempting to download.")
+            # ELSE TRY TO DOWNLOAD FROM CANVAS
+            if FILE_SIZE_THRESH >= 0 and file.size > FILE_SIZE_THRESH:
+                print("not downloading (over threshold)")
+                pass #don't download
+            else:
+                if not target_file_path.is_file():
+                    try:
+                        # file.download(target_file_path)
+                        pass
+                    except Exception as e:
+                        pass
+                        # file["exception"] = CanvasErrorHandler.handle_exception(
+                        #     e, f'file.download({target_file_path})'
+                        # )
+                        # file_dict["downloaded"] = False
+                    else:
+                        print12(f"Downloaded: {file.filename}")
+                        file_dict["downloaded"] = True
+                else:
+                    print12(f"File Already Exists: {file.filename}")
+                    file_dict["downloaded"] = True
+
+
+        # write back to json path
+        # write_obj_json(file_dict, json_path)
+        print12(f"new file dict:\n{files}")
+
+
+    finish_time = datetime.now()
+    print12(f'Finished archiving in {finish_time-start_time}')
 
     """
     for each course folder
