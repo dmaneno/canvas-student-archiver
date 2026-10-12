@@ -78,6 +78,9 @@ if __name__ == "__main__":
 
     FILE_SIZE_THRESH = creds.get("FILE_SIZE_THRESH", -1)
 
+    # temporary for purposes of testing file_migrate
+    COURSE_NAME_SELECT = creds.get("COURSE_NAME_SELECT", [])
+
     # Update output directory
     SOURCE_DIR = Path(args.input)
     TARGET_DIR = Path(args.output)
@@ -145,7 +148,14 @@ if __name__ == "__main__":
     # path to old output
     # NOTE: if you want to use this in threading, prob have to cast to list
     # json_paths = TARGET_DIR.rglob("files.json")
-    json_paths = list(TARGET_DIR.rglob("files.json"))
+    
+    json_paths = []
+    if COURSE_NAME_SELECT:
+        for course_name in COURSE_NAME_SELECT:
+            json_paths += list(TARGET_DIR.rglob(f"{course_name}/files.json"))
+    else:
+        json_paths = list(TARGET_DIR.rglob("files.json"))
+
     print12(f"found {len(json_paths)} files.json files")
 
     # EACH COURSE
