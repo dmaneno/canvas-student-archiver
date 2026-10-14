@@ -195,7 +195,19 @@ if __name__ == "__main__":
 
             file = File(requester, file_dict)
 
-            target_file_path = TARGET_DIR.parent / Path(file.file_path) #NOTE assuming that TARGET_DIR is "output" folder, root folder of course downloading...
+            # TODO: update stored file paths and file name to follow id_displayname convention,
+            # addressing issue of multiple files having same name, stored in separate, inaccessibile folders
+            # in canvas backend that can't be replicated locally unless you want to go down a rabbithole of finding
+            # which module it's associated with to make a folder manually.
+            # fixing the downloader to do that would be somewhat impractical bc it would require
+            # a specific order of how things are downloaded and always passing along where a
+            # file was specifically sourced from.
+            new_file_name = valid_fname(f"{file.id}_{file.display_name}")
+            target_file_path = TARGET_DIR.parent / Path(file.file_path).parent / new_file_name
+            file_dict["display_name"] = new_file_name
+            file_dict["file_path"] = str(target_file_path)
+            #TODO: warning, these update the dict to store back to json, but does not update File obj you just created
+            # target_file_path = TARGET_DIR.parent / Path(file.file_path) #NOTE assuming that TARGET_DIR is "output" folder, root folder of course downloading...
 
             # TODO - submission detection? i put id at end, davekats put at front...
 
