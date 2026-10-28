@@ -18,6 +18,8 @@ Currently, the archiver will save the following resources it can find from each 
     - includes full discussion thread
 - modules
 - module items
+- the course itself
+    - includes metadata, syllabus page html if available 
 
 The data for each individual resource is stored in its JSON form matching the Canvas API documentation (with some additional fields to aid in file management and future html viewing extensions - see *Project Progress*)
 
